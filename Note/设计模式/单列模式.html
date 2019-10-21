@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/><meta name="exporter-version" content="Evernote Mac 9.2.0 (458672)"/><meta name="author" content="林"/><meta name="created" content="2019-09-28 14:19:09 +0000"/><meta name="source" content="desktop.mac"/><meta name="updated" content="2019-09-28 15:21:20 +0000"/><meta name="content-class" content="yinxiang.markdown"/><title>单列模式</title></head><body><div style="font-size: 14px; margin: 0; padding: 0; width: 100%;"><div style="line-height: 160%; box-sizing: content-box;"><ul style="line-height: 160%; box-sizing: content-box; display: block; list-style-type: disc; padding-left: 30px; margin: 6px 0 10px; color: #333;"><li style="line-height: 160%; box-sizing: content-box; position: relative;"><a style="line-height: 160%; box-sizing: content-box; text-decoration: underline; color: #5286bc;">饿汉模式
+</a></li><li style="line-height: 160%; box-sizing: content-box; position: relative;"><a style="line-height: 160%; box-sizing: content-box; text-decoration: underline; color: #5286bc;">懒汉模式
+</a></li><li style="line-height: 160%; box-sizing: content-box; position: relative;"><a style="line-height: 160%; box-sizing: content-box; text-decoration: underline; color: #5286bc;">线程安全的懒汉式
+</a></li><li style="line-height: 160%; box-sizing: content-box; position: relative;"><a style="line-height: 160%; box-sizing: content-box; text-decoration: underline; color: #5286bc;">双层检验模式
+</a><ul style="line-height: 160%; box-sizing: content-box; display: block; list-style-type: disc; padding-left: 30px; margin: 6px 0 10px; color: #333; margin-top: 0; margin-bottom: 0;"><li style="line-height: 160%; box-sizing: content-box; position: relative;"><a style="line-height: 160%; box-sizing: content-box; text-decoration: underline; color: #5286bc;">Kotlin源码
+</a></li></ul></li><li style="line-height: 160%; box-sizing: content-box; position: relative;"><a style="line-height: 160%; box-sizing: content-box; text-decoration: underline; color: #5286bc;">静态内部类
+</a></li></ul></div><h1 style="line-height: 160%; box-sizing: content-box; font-weight: 700; font-size: 41px; border-bottom: 3px double #999; color: #000; margin-top: 14px;">饿汉模式</h1>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">不足：一开始就被初始化，无法延迟加载，增加了内存资源的占用<br/>
+最好使用在调用几率高的对象上<br/>
+JAVA</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">public class MyInstance{
+private static MyInstance instance = new MyInstance();
+
+public static MyInstance getInstance(){
+    return instance;
+    }
+}
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">Kotlin</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">object MyInstance
+</code></pre>
+<h1 style="line-height: 160%; box-sizing: content-box; font-weight: 700; font-size: 41px; border-bottom: 3px double #999; color: #000;">懒汉模式</h1>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">不足：在多线程下使用不安全<br/>
+JAVA</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">public class MyInstance{
+private static MyInstance instance = null;
+
+public static MyInstance getInstance(){
+    if(instance == null)
+        instance = new MyInstance();
+    }
+    return instance;
+    }
+}
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">Kotlin</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">class MyInstance{
+companion object{
+    private val instance:MyInstance ?= null
+    get(){
+        if(field == null){
+            field = MyInstance()
+        }
+        return field
+   }
+   fun getInstance():MyInstance{
+        return instance!!
+   }
+}
+</code></pre>
+<h1 style="line-height: 160%; box-sizing: content-box; font-weight: 700; font-size: 41px; border-bottom: 3px double #999; color: #000;">线程安全的懒汉式</h1>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">不足：使用同步锁性能低下<br/>
+JAVA</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">public class MyInstance{
+private static MyInstance instance = null;
+
+public static Synchronized MyInstance getInstance(){
+    if(instance == null)
+        instance = new MyInstance();
+    }
+    return instance;
+    }
+}
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">Kotlin</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">class MyInstance{
+companion object{
+    private val instance:MyInstance ?= null
+    get(){
+        if(field == null){
+            field = MyInstance()
+        }
+        return field
+   }
+   
+   @Synchronized
+   fun getInstance():MyInstance{
+        return instance!!
+   }
+}
+</code></pre>
+<h1 style="line-height: 160%; box-sizing: content-box; font-weight: 700; font-size: 41px; border-bottom: 3px double #999; color: #000;">双层检验模式</h1>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">是懒汉模式的优化，优化了锁的范围，但可能会出现未知错误<br/>
+JAVA</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">public class MyInstance{
+private static MyInstance instance = null;
+
+public static MyInstance getInstance(){
+    if(instance == null){
+        Synchronized(MyInstance.class){
+            if(instance == null){
+                instance = MyInstance();
+            }
+        }
+    }
+    return instance;
+}
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">Kotlin</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">class MyInstance{
+    val instance by lazy(mode = LazyThreadSafetyMode.SYNCHRONIZED){
+        Myinstance()
+    }
+}
+</code></pre>
+<h2 style="line-height: 160%; box-sizing: content-box; font-weight: 700; font-size: 34px; border-bottom: 1px solid #dbdbdb; color: #333;">Kotlin源码</h2>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">首先是lazy的源码:<br/>
+单mode = LazyThreadSafetyMode.SYNCHRONIZED，返回了一个SynchronizedLazyImpl(initializer)。<br/>
+lazy的原理先放着(还不能理解)</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">public actual fun &lt;T&gt; lazy(mode: LazyThreadSafetyMode, initializer: () -&gt; T): Lazy&lt;T&gt; =
+    when (mode) {
+        LazyThreadSafetyMode.SYNCHRONIZED -&gt; SynchronizedLazyImpl(initializer)
+        LazyThreadSafetyMode.PUBLICATION -&gt; SafePublicationLazyImpl(initializer)
+        LazyThreadSafetyMode.NONE -&gt; UnsafeLazyImpl(initializer)
+    }
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">SynchronizedLazyImpl的源码：<br/>
+和Java的单列代码实现思想还是很相似</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">private class SynchronizedLazyImpl&lt;out T&gt;(initializer: () -&gt; T, lock: Any? = null) : Lazy&lt;T&gt;, Serializable {
+    private var initializer: (() -&gt; T)? = initializer
+    @Volatile private var _value: Any? = UNINITIALIZED_VALUE
+    // final field is required to enable safe publication of constructed instance
+    private val lock = lock ?: this
+
+    override val value: T
+        get() {
+            val _v1 = _value
+            if (_v1 !== UNINITIALIZED_VALUE) {
+                @Suppress("UNCHECKED_CAST")
+                return _v1 as T
+            }
+
+            return synchronized(lock) {
+                val _v2 = _value
+                if (_v2 !== UNINITIALIZED_VALUE) {
+                    @Suppress("UNCHECKED_CAST") (_v2 as T)
+                } else {
+                    val typedValue = initializer!!()
+                    _value = typedValue
+                    initializer = null
+                    typedValue
+                }
+            }
+        }
+        
+        ...
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">仿照源码的双检实现</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">class MyInstance{
+    companion object{
+        @Volatile private var instance:MyInstance ?= null
+        private fun getInstance() = if (instance == null){
+            synchronized(this){
+                instance ?: MyInstance()
+            }
+        }else instance
+    }
+}
+</code></pre>
+<h1 style="line-height: 160%; box-sizing: content-box; font-weight: 700; font-size: 41px; border-bottom: 3px double #999; color: #000;">静态内部类</h1>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">优点：避免使用了同步锁，也能保证延迟加载<br/>
+JAVA</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">public class MyInstance{
+    private static class InstanceHolder{
+        static final MyInstance instance = new MyInstance();
+    }
+    
+    public static getMyInstance(){
+        return InstanceHolder.instance;
+    }
+}
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">Kotlin</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">class MyInstance{
+    private object InstanceHolder{
+        val instance = MyInstance()
+    }
+    
+    fun getInstance(){
+        return InstanceHolder.instance
+    }
+}
+</code></pre>
+</div><center style="display:none !important;visibility:collapse !important;height:0 !important;white-space:nowrap;width:100%;overflow:hidden">%5BTOC%5D%0A%23%20%E9%A5%BF%E6%B1%89%E6%A8%A1%E5%BC%8F%0A%E4%B8%8D%E8%B6%B3%EF%BC%9A%E4%B8%80%E5%BC%80%E5%A7%8B%E5%B0%B1%E8%A2%AB%E5%88%9D%E5%A7%8B%E5%8C%96%EF%BC%8C%E6%97%A0%E6%B3%95%E5%BB%B6%E8%BF%9F%E5%8A%A0%E8%BD%BD%EF%BC%8C%E5%A2%9E%E5%8A%A0%E4%BA%86%E5%86%85%E5%AD%98%E8%B5%84%E6%BA%90%E7%9A%84%E5%8D%A0%E7%94%A8%0A%E6%9C%80%E5%A5%BD%E4%BD%BF%E7%94%A8%E5%9C%A8%E8%B0%83%E7%94%A8%E5%87%A0%E7%8E%87%E9%AB%98%E7%9A%84%E5%AF%B9%E8%B1%A1%E4%B8%8A%0AJAVA%0A%60%60%60%0Apublic%20class%20MyInstance%7B%0Aprivate%20static%20MyInstance%20instance%20%3D%20new%20MyInstance()%3B%0A%0Apublic%20static%20MyInstance%20getInstance()%7B%0A%20%20%20%20return%20instance%3B%0A%20%20%20%20%7D%0A%7D%0A%60%60%60%0AKotlin%0A%60%60%60%0Aobject%20MyInstance%0A%60%60%60%0A%0A%23%20%E6%87%92%E6%B1%89%E6%A8%A1%E5%BC%8F%0A%E4%B8%8D%E8%B6%B3%EF%BC%9A%E5%9C%A8%E5%A4%9A%E7%BA%BF%E7%A8%8B%E4%B8%8B%E4%BD%BF%E7%94%A8%E4%B8%8D%E5%AE%89%E5%85%A8%0AJAVA%0A%60%60%60%0Apublic%20class%20MyInstance%7B%0Aprivate%20static%20MyInstance%20instance%20%3D%20null%3B%0A%0Apublic%20static%20MyInstance%20getInstance()%7B%0A%20%20%20%20if(instance%20%3D%3D%20null)%0A%20%20%20%20%20%20%20%20instance%20%3D%20new%20MyInstance()%3B%0A%20%20%20%20%7D%0A%20%20%20%20return%20instance%3B%0A%20%20%20%20%7D%0A%7D%0A%60%60%60%0AKotlin%0A%60%60%60%0Aclass%20MyInstance%7B%0Acompanion%20object%7B%0A%20%20%20%20private%20val%20instance%3AMyInstance%20%3F%3D%20null%0A%20%20%20%20get()%7B%0A%20%20%20%20%20%20%20%20if(field%20%3D%3D%20null)%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20field%20%3D%20MyInstance()%0A%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20return%20field%0A%20%20%20%7D%0A%20%20%20fun%20getInstance()%3AMyInstance%7B%0A%20%20%20%20%20%20%20%20return%20instance!!%0A%20%20%20%7D%0A%7D%0A%60%60%60%0A%0A%23%20%E7%BA%BF%E7%A8%8B%E5%AE%89%E5%85%A8%E7%9A%84%E6%87%92%E6%B1%89%E5%BC%8F%0A%E4%B8%8D%E8%B6%B3%EF%BC%9A%E4%BD%BF%E7%94%A8%E5%90%8C%E6%AD%A5%E9%94%81%E6%80%A7%E8%83%BD%E4%BD%8E%E4%B8%8B%0AJAVA%0A%60%60%60%0Apublic%20class%20MyInstance%7B%0Aprivate%20static%20MyInstance%20instance%20%3D%20null%3B%0A%0Apublic%20static%20Synchronized%20MyInstance%20getInstance()%7B%0A%20%20%20%20if(instance%20%3D%3D%20null)%0A%20%20%20%20%20%20%20%20instance%20%3D%20new%20MyInstance()%3B%0A%20%20%20%20%7D%0A%20%20%20%20return%20instance%3B%0A%20%20%20%20%7D%0A%7D%0A%60%60%60%0AKotlin%0A%60%60%60%0Aclass%20MyInstance%7B%0Acompanion%20object%7B%0A%20%20%20%20private%20val%20instance%3AMyInstance%20%3F%3D%20null%0A%20%20%20%20get()%7B%0A%20%20%20%20%20%20%20%20if(field%20%3D%3D%20null)%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20field%20%3D%20MyInstance()%0A%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20return%20field%0A%20%20%20%7D%0A%20%20%20%0A%20%20%20%40Synchronized%0A%20%20%20fun%20getInstance()%3AMyInstance%7B%0A%20%20%20%20%20%20%20%20return%20instance!!%0A%20%20%20%7D%0A%7D%0A%60%60%60%0A%0A%23%20%E5%8F%8C%E5%B1%82%E6%A3%80%E9%AA%8C%E6%A8%A1%E5%BC%8F%0A%E6%98%AF%E6%87%92%E6%B1%89%E6%A8%A1%E5%BC%8F%E7%9A%84%E4%BC%98%E5%8C%96%EF%BC%8C%E4%BC%98%E5%8C%96%E4%BA%86%E9%94%81%E7%9A%84%E8%8C%83%E5%9B%B4%EF%BC%8C%E4%BD%86%E5%8F%AF%E8%83%BD%E4%BC%9A%E5%87%BA%E7%8E%B0%E6%9C%AA%E7%9F%A5%E9%94%99%E8%AF%AF%0AJAVA%0A%60%60%60%0Apublic%20class%20MyInstance%7B%0Aprivate%20static%20MyInstance%20instance%20%3D%20null%3B%0A%0Apublic%20static%20MyInstance%20getInstance()%7B%0A%20%20%20%20if(instance%20%3D%3D%20null)%7B%0A%20%20%20%20%20%20%20%20Synchronized(MyInstance.class)%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20if(instance%20%3D%3D%20null)%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20instance%20%3D%20MyInstance()%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%7D%0A%20%20%20%20return%20instance%3B%0A%7D%0A%60%60%60%0AKotlin%0A%60%60%60%0Aclass%20MyInstance%7B%0A%20%20%20%20val%20instance%20by%20lazy(mode%20%3D%20LazyThreadSafetyMode.SYNCHRONIZED)%7B%0A%20%20%20%20%20%20%20%20Myinstance()%0A%20%20%20%20%7D%0A%7D%0A%60%60%60%0A%0A%23%23%20Kotlin%E6%BA%90%E7%A0%81%0A%0A%E9%A6%96%E5%85%88%E6%98%AFlazy%E7%9A%84%E6%BA%90%E7%A0%81%3A%0A%E5%8D%95mode%20%3D%20LazyThreadSafetyMode.SYNCHRONIZED%EF%BC%8C%E8%BF%94%E5%9B%9E%E4%BA%86%E4%B8%80%E4%B8%AASynchronizedLazyImpl(initializer)%E3%80%82%0Alazy%E7%9A%84%E5%8E%9F%E7%90%86%E5%85%88%E6%94%BE%E7%9D%80(%E8%BF%98%E4%B8%8D%E8%83%BD%E7%90%86%E8%A7%A3)%0A%60%60%60%0Apublic%20actual%20fun%20%3CT%3E%20lazy(mode%3A%20LazyThreadSafetyMode%2C%20initializer%3A%20()%20-%3E%20T)%3A%20Lazy%3CT%3E%20%3D%0A%20%20%20%20when%20(mode)%20%7B%0A%20%20%20%20%20%20%20%20LazyThreadSafetyMode.SYNCHRONIZED%20-%3E%20SynchronizedLazyImpl(initializer)%0A%20%20%20%20%20%20%20%20LazyThreadSafetyMode.PUBLICATION%20-%3E%20SafePublicationLazyImpl(initializer)%0A%20%20%20%20%20%20%20%20LazyThreadSafetyMode.NONE%20-%3E%20UnsafeLazyImpl(initializer)%0A%20%20%20%20%7D%0A%60%60%60%0ASynchronizedLazyImpl%E7%9A%84%E6%BA%90%E7%A0%81%EF%BC%9A%0A%E5%92%8CJava%E7%9A%84%E5%8D%95%E5%88%97%E4%BB%A3%E7%A0%81%E5%AE%9E%E7%8E%B0%E6%80%9D%E6%83%B3%E8%BF%98%E6%98%AF%E5%BE%88%E7%9B%B8%E4%BC%BC%0A%0A%60%60%60%0Aprivate%20class%20SynchronizedLazyImpl%3Cout%20T%3E(initializer%3A%20()%20-%3E%20T%2C%20lock%3A%20Any%3F%20%3D%20null)%20%3A%20Lazy%3CT%3E%2C%20Serializable%20%7B%0A%20%20%20%20private%20var%20initializer%3A%20(()%20-%3E%20T)%3F%20%3D%20initializer%0A%20%20%20%20%40Volatile%20private%20var%20_value%3A%20Any%3F%20%3D%20UNINITIALIZED_VALUE%0A%20%20%20%20%2F%2F%20final%20field%20is%20required%20to%20enable%20safe%20publication%20of%20constructed%20instance%0A%20%20%20%20private%20val%20lock%20%3D%20lock%20%3F%3A%20this%0A%0A%20%20%20%20override%20val%20value%3A%20T%0A%20%20%20%20%20%20%20%20get()%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20val%20_v1%20%3D%20_value%0A%20%20%20%20%20%20%20%20%20%20%20%20if%20(_v1%20!%3D%3D%20UNINITIALIZED_VALUE)%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%40Suppress(%22UNCHECKED_CAST%22)%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20return%20_v1%20as%20T%0A%20%20%20%20%20%20%20%20%20%20%20%20%7D%0A%0A%20%20%20%20%20%20%20%20%20%20%20%20return%20synchronized(lock)%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20val%20_v2%20%3D%20_value%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20if%20(_v2%20!%3D%3D%20UNINITIALIZED_VALUE)%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%40Suppress(%22UNCHECKED_CAST%22)%20(_v2%20as%20T)%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%7D%20else%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20val%20typedValue%20%3D%20initializer!!()%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20_value%20%3D%20typedValue%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20initializer%20%3D%20null%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20typedValue%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20%0A%20%20%20%20%20%20%20%20...%0A%60%60%60%0A%0A%E4%BB%BF%E7%85%A7%E6%BA%90%E7%A0%81%E7%9A%84%E5%8F%8C%E6%A3%80%E5%AE%9E%E7%8E%B0%0A%60%60%60%0Aclass%20MyInstance%7B%0A%20%20%20%20companion%20object%7B%0A%20%20%20%20%20%20%20%20%40Volatile%20private%20var%20instance%3AMyInstance%20%3F%3D%20null%0A%20%20%20%20%20%20%20%20private%20fun%20getInstance()%20%3D%20if%20(instance%20%3D%3D%20null)%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20synchronized(this)%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20instance%20%3F%3A%20MyInstance()%0A%20%20%20%20%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20%7Delse%20instance%0A%20%20%20%20%7D%0A%7D%0A%60%60%60%0A%0A%23%20%E9%9D%99%E6%80%81%E5%86%85%E9%83%A8%E7%B1%BB%0A%E4%BC%98%E7%82%B9%EF%BC%9A%E9%81%BF%E5%85%8D%E4%BD%BF%E7%94%A8%E4%BA%86%E5%90%8C%E6%AD%A5%E9%94%81%EF%BC%8C%E4%B9%9F%E8%83%BD%E4%BF%9D%E8%AF%81%E5%BB%B6%E8%BF%9F%E5%8A%A0%E8%BD%BD%0AJAVA%0A%60%60%60%0Apublic%20class%20MyInstance%7B%0A%20%20%20%20private%20static%20class%20InstanceHolder%7B%0A%20%20%20%20%20%20%20%20static%20final%20MyInstance%20instance%20%3D%20new%20MyInstance()%3B%0A%20%20%20%20%7D%0A%20%20%20%20%0A%20%20%20%20public%20static%20getMyInstance()%7B%0A%20%20%20%20%20%20%20%20return%20InstanceHolder.instance%3B%0A%20%20%20%20%7D%0A%7D%0A%60%60%60%0AKotlin%0A%60%60%60%0Aclass%20MyInstance%7B%0A%20%20%20%20private%20object%20InstanceHolder%7B%0A%20%20%20%20%20%20%20%20val%20instance%20%3D%20MyInstance()%0A%20%20%20%20%7D%0A%20%20%20%20%0A%20%20%20%20fun%20getInstance()%7B%0A%20%20%20%20%20%20%20%20return%20InstanceHolder.instance%0A%20%20%20%20%7D%0A%7D%0A</center></body></html>

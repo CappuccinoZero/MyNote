@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/><meta name="exporter-version" content="Evernote Mac 9.2.0 (458672)"/><meta name="author" content="林"/><meta name="created" content="2019-10-05 09:07:17 +0000"/><meta name="source" content="desktop.mac"/><meta name="updated" content="2019-10-05 11:59:08 +0000"/><meta name="content-class" content="yinxiang.markdown"/><title>View-基础</title></head><body><div style="font-size: 14px; margin: 0; padding: 0; width: 100%;"><h3 style="line-height: 160%; box-sizing: content-box; font-weight: 700; font-size: 27px; color: #333;">TranslationX,TranslationY,X,y</h3>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">x,y代表view左上角相对于父view的坐标<br/>
+translationX,translationY代表view左上角的偏移量<br/>
+x = left + translationX<br/>
+y = top + translationY<br/>
+left和top通常是不变的，变化的是x，y，translation的值</p>
+<h3 style="line-height: 160%; box-sizing: content-box; font-weight: 700; font-size: 27px; color: #333;">MotionEvent</h3>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">ACTION_DOWN 手指刚接触屏幕<br/>
+ACTION_MOVE 手指在屏幕中滑动<br/>
+ACTIOB_UP 手指刚离开屏幕</p>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">getRawX(),getRawY()返回相对于屏幕的坐标<br/>
+getX(),getY()返回相对于父view的坐标</p>
+<h3 style="line-height: 160%; box-sizing: content-box; font-weight: 700; font-size: 27px; color: #333;">TouchSlop</h3>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">判定屏幕滑动的最小数值，通常是一个常数，和设备有关<br/>
+获取方法：ViewConfiguration.get(context).scaleTouchSlop()</p>
+<h3 style="line-height: 160%; box-sizing: content-box; font-weight: 700; font-size: 27px; color: #333;">速度追踪</h3>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">val v = VelocityTracker.obtain()
+v.addMovement(event)
+//获取速度追踪者并且追踪当前点击事件
+v.computeCurrentVelocity(1000)
+//设置追踪的间隔，这里是1s
+v.xVelocity
+v.yVelocity
+//x，y的速度
+v.clear()
+v.recycle()
+//结束后清理并回收
+</code></pre>
+<h3 style="line-height: 160%; box-sizing: content-box; font-weight: 700; font-size: 27px; color: #333;">ScrollBy,ScrollTo</h3>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">    public void scrollBy(int x, int y) {
+        scrollTo(mScrollX + x, mScrollY + y);
+    }
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">scrollTo和scrollBy方法针对的是内容，也就是子view<br/>
+当值为负数是向下/右移动，反之向左</p>
+<h3 style="line-height: 160%; box-sizing: content-box; font-weight: 700; font-size: 27px; color: #333;">通过LayoutParams改变位置大小等属性</h3>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">获取属性</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">val params = mView.layoutParams as ViewGroup.MarginLayoutParams
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">确认</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">mView.requestLayout()
+Or
+mView.layoutParams = params
+</code></pre>
+<h3 style="line-height: 160%; box-sizing: content-box; font-weight: 700; font-size: 27px; color: #333;">使用Scroller完成弹性滑动</h3>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">val scroller = Scroller(context)
+fun startScroll(){
+        scroller.startScroll(scrollX,scrollY,-100,-100,1000)
+        invalidate()
+    }
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">在View中定义方法，调用scroller..startScroll(),后再调用invalidate()<br/>
+会重绘view，并且在onDraw()方法中调用computeScroll()方法</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">override fun computeScroll() {
+        if(scroller.computeScrollOffset()){
+            scrollTo(scroller.currX,scroller.currY)
+            postInvalidate()
+        }
+    }
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">在computeScroll方法中又再次调用postInvalidate()方法</p>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">其中onStartScroll()方法主要进行一些初始化赋值</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">public void startScroll(int startX, int startY, int dx, int dy, int duration) {
+        mMode = SCROLL_MODE;
+        mFinished = false;
+        mDuration = duration;
+        mStartTime = AnimationUtils.currentAnimationTimeMillis();
+        mStartX = startX;
+        mStartY = startY;
+        mFinalX = startX + dx;
+        mFinalY = startY + dy;
+        mDeltaX = dx;
+        mDeltaY = dy;
+        mDurationReciprocal = 1.0f / (float) mDuration;
+    }
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">scroller.computeScrollOffset()方法会更具当前时间流逝判断是否动画是否已经结束，如果没有结束就会返回True，并且内部会对动画中的属性进行更新，达到改变view状态的效果</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">    public boolean computeScrollOffset() {
+        if (mFinished) {
+            return false;
+        }
+
+        int timePassed = (int)(AnimationUtils.currentAnimationTimeMillis() - mStartTime);
+    
+        if (timePassed &lt; mDuration) {
+            switch (mMode) {
+            case SCROLL_MODE:
+                final float x = mInterpolator.getInterpolation(timePassed * mDurationReciprocal);
+                mCurrX = mStartX + Math.round(x * mDeltaX);
+                mCurrY = mStartY + Math.round(x * mDeltaY);
+                break;
+            case FLING_MODE:
+                final float t = (float) timePassed / mDuration;
+                final int index = (int) (NB_SAMPLES * t);
+                float distanceCoef = 1.f;
+                float velocityCoef = 0.f;
+                if (index &lt; NB_SAMPLES) {
+                    final float t_inf = (float) index / NB_SAMPLES;
+                    final float t_sup = (float) (index + 1) / NB_SAMPLES;
+                    final float d_inf = SPLINE_POSITION[index];
+                    final float d_sup = SPLINE_POSITION[index + 1];
+                    velocityCoef = (d_sup - d_inf) / (t_sup - t_inf);
+                    distanceCoef = d_inf + (t - t_inf) * velocityCoef;
+                }
+
+                mCurrVelocity = velocityCoef * mDistance / mDuration * 1000.0f;
+                
+                mCurrX = mStartX + Math.round(distanceCoef * (mFinalX - mStartX));
+                // Pin to mMinX &lt;= mCurrX &lt;= mMaxX
+                mCurrX = Math.min(mCurrX, mMaxX);
+                mCurrX = Math.max(mCurrX, mMinX);
+                
+                mCurrY = mStartY + Math.round(distanceCoef * (mFinalY - mStartY));
+                // Pin to mMinY &lt;= mCurrY &lt;= mMaxY
+                mCurrY = Math.min(mCurrY, mMaxY);
+                mCurrY = Math.max(mCurrY, mMinY);
+
+                if (mCurrX == mFinalX &amp;&amp; mCurrY == mFinalY) {
+                    mFinished = true;
+                }
+
+                break;
+            }
+        }
+        else {
+            mCurrX = mFinalX;
+            mCurrY = mFinalY;
+            mFinished = true;
+        }
+        return true;
+    }
+</code></pre>
+</div><center style="display:none !important;visibility:collapse !important;height:0 !important;white-space:nowrap;width:100%;overflow:hidden">%23%23%23%20TranslationX%2CTranslationY%2CX%2Cy%0A%0Ax%2Cy%E4%BB%A3%E8%A1%A8view%E5%B7%A6%E4%B8%8A%E8%A7%92%E7%9B%B8%E5%AF%B9%E4%BA%8E%E7%88%B6view%E7%9A%84%E5%9D%90%E6%A0%87%0AtranslationX%2CtranslationY%E4%BB%A3%E8%A1%A8view%E5%B7%A6%E4%B8%8A%E8%A7%92%E7%9A%84%E5%81%8F%E7%A7%BB%E9%87%8F%0Ax%20%3D%20left%20%2B%20translationX%0Ay%20%3D%20top%20%2B%20translationY%0Aleft%E5%92%8Ctop%E9%80%9A%E5%B8%B8%E6%98%AF%E4%B8%8D%E5%8F%98%E7%9A%84%EF%BC%8C%E5%8F%98%E5%8C%96%E7%9A%84%E6%98%AFx%EF%BC%8Cy%EF%BC%8Ctranslation%E7%9A%84%E5%80%BC%0A%0A%23%23%23%20MotionEvent%0AACTION_DOWN%20%E6%89%8B%E6%8C%87%E5%88%9A%E6%8E%A5%E8%A7%A6%E5%B1%8F%E5%B9%95%0AACTION_MOVE%20%E6%89%8B%E6%8C%87%E5%9C%A8%E5%B1%8F%E5%B9%95%E4%B8%AD%E6%BB%91%E5%8A%A8%0AACTIOB_UP%20%E6%89%8B%E6%8C%87%E5%88%9A%E7%A6%BB%E5%BC%80%E5%B1%8F%E5%B9%95%0A%0AgetRawX()%2CgetRawY()%E8%BF%94%E5%9B%9E%E7%9B%B8%E5%AF%B9%E4%BA%8E%E5%B1%8F%E5%B9%95%E7%9A%84%E5%9D%90%E6%A0%87%0AgetX()%2CgetY()%E8%BF%94%E5%9B%9E%E7%9B%B8%E5%AF%B9%E4%BA%8E%E7%88%B6view%E7%9A%84%E5%9D%90%E6%A0%87%0A%0A%23%23%23%20TouchSlop%0A%E5%88%A4%E5%AE%9A%E5%B1%8F%E5%B9%95%E6%BB%91%E5%8A%A8%E7%9A%84%E6%9C%80%E5%B0%8F%E6%95%B0%E5%80%BC%EF%BC%8C%E9%80%9A%E5%B8%B8%E6%98%AF%E4%B8%80%E4%B8%AA%E5%B8%B8%E6%95%B0%EF%BC%8C%E5%92%8C%E8%AE%BE%E5%A4%87%E6%9C%89%E5%85%B3%0A%E8%8E%B7%E5%8F%96%E6%96%B9%E6%B3%95%EF%BC%9AViewConfiguration.get(context).scaleTouchSlop()%0A%0A%23%23%23%20%E9%80%9F%E5%BA%A6%E8%BF%BD%E8%B8%AA%0A%0A%60%60%60%0Aval%20v%20%3D%20VelocityTracker.obtain()%0Av.addMovement(event)%0A%2F%2F%E8%8E%B7%E5%8F%96%E9%80%9F%E5%BA%A6%E8%BF%BD%E8%B8%AA%E8%80%85%E5%B9%B6%E4%B8%94%E8%BF%BD%E8%B8%AA%E5%BD%93%E5%89%8D%E7%82%B9%E5%87%BB%E4%BA%8B%E4%BB%B6%0Av.computeCurrentVelocity(1000)%0A%2F%2F%E8%AE%BE%E7%BD%AE%E8%BF%BD%E8%B8%AA%E7%9A%84%E9%97%B4%E9%9A%94%EF%BC%8C%E8%BF%99%E9%87%8C%E6%98%AF1s%0Av.xVelocity%0Av.yVelocity%0A%2F%2Fx%EF%BC%8Cy%E7%9A%84%E9%80%9F%E5%BA%A6%0Av.clear()%0Av.recycle()%0A%2F%2F%E7%BB%93%E6%9D%9F%E5%90%8E%E6%B8%85%E7%90%86%E5%B9%B6%E5%9B%9E%E6%94%B6%0A%60%60%60%0A%0A%23%23%23%20ScrollBy%2CScrollTo%0A%60%60%60%0A%20%20%20%20public%20void%20scrollBy(int%20x%2C%20int%20y)%20%7B%0A%20%20%20%20%20%20%20%20scrollTo(mScrollX%20%2B%20x%2C%20mScrollY%20%2B%20y)%3B%0A%20%20%20%20%7D%0A%60%60%60%0AscrollTo%E5%92%8CscrollBy%E6%96%B9%E6%B3%95%E9%92%88%E5%AF%B9%E7%9A%84%E6%98%AF%E5%86%85%E5%AE%B9%EF%BC%8C%E4%B9%9F%E5%B0%B1%E6%98%AF%E5%AD%90view%0A%E5%BD%93%E5%80%BC%E4%B8%BA%E8%B4%9F%E6%95%B0%E6%98%AF%E5%90%91%E4%B8%8B%2F%E5%8F%B3%E7%A7%BB%E5%8A%A8%EF%BC%8C%E5%8F%8D%E4%B9%8B%E5%90%91%E5%B7%A6%0A%0A%23%23%23%20%E9%80%9A%E8%BF%87LayoutParams%E6%94%B9%E5%8F%98%E4%BD%8D%E7%BD%AE%E5%A4%A7%E5%B0%8F%E7%AD%89%E5%B1%9E%E6%80%A7%0A%E8%8E%B7%E5%8F%96%E5%B1%9E%E6%80%A7%0A%60%60%60%0Aval%20params%20%3D%20mView.layoutParams%20as%20ViewGroup.MarginLayoutParams%0A%60%60%60%0A%E7%A1%AE%E8%AE%A4%0A%60%60%60%0AmView.requestLayout()%0AOr%0AmView.layoutParams%20%3D%20params%0A%60%60%60%0A%0A%23%23%23%20%E4%BD%BF%E7%94%A8Scroller%E5%AE%8C%E6%88%90%E5%BC%B9%E6%80%A7%E6%BB%91%E5%8A%A8%0A%60%60%60%0Aval%20scroller%20%3D%20Scroller(context)%0Afun%20startScroll()%7B%0A%20%20%20%20%20%20%20%20scroller.startScroll(scrollX%2CscrollY%2C-100%2C-100%2C1000)%0A%20%20%20%20%20%20%20%20invalidate()%0A%20%20%20%20%7D%0A%60%60%60%0A%E5%9C%A8View%E4%B8%AD%E5%AE%9A%E4%B9%89%E6%96%B9%E6%B3%95%EF%BC%8C%E8%B0%83%E7%94%A8scroller..startScroll()%2C%E5%90%8E%E5%86%8D%E8%B0%83%E7%94%A8invalidate()%0A%E4%BC%9A%E9%87%8D%E7%BB%98view%EF%BC%8C%E5%B9%B6%E4%B8%94%E5%9C%A8onDraw()%E6%96%B9%E6%B3%95%E4%B8%AD%E8%B0%83%E7%94%A8computeScroll()%E6%96%B9%E6%B3%95%0A%60%60%60%0Aoverride%20fun%20computeScroll()%20%7B%0A%20%20%20%20%20%20%20%20if(scroller.computeScrollOffset())%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20scrollTo(scroller.currX%2Cscroller.currY)%0A%20%20%20%20%20%20%20%20%20%20%20%20postInvalidate()%0A%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%7D%0A%60%60%60%0A%E5%9C%A8computeScroll%E6%96%B9%E6%B3%95%E4%B8%AD%E5%8F%88%E5%86%8D%E6%AC%A1%E8%B0%83%E7%94%A8postInvalidate()%E6%96%B9%E6%B3%95%0A%0A%E5%85%B6%E4%B8%ADonStartScroll()%E6%96%B9%E6%B3%95%E4%B8%BB%E8%A6%81%E8%BF%9B%E8%A1%8C%E4%B8%80%E4%BA%9B%E5%88%9D%E5%A7%8B%E5%8C%96%E8%B5%8B%E5%80%BC%0A%60%60%60%0Apublic%20void%20startScroll(int%20startX%2C%20int%20startY%2C%20int%20dx%2C%20int%20dy%2C%20int%20duration)%20%7B%0A%20%20%20%20%20%20%20%20mMode%20%3D%20SCROLL_MODE%3B%0A%20%20%20%20%20%20%20%20mFinished%20%3D%20false%3B%0A%20%20%20%20%20%20%20%20mDuration%20%3D%20duration%3B%0A%20%20%20%20%20%20%20%20mStartTime%20%3D%20AnimationUtils.currentAnimationTimeMillis()%3B%0A%20%20%20%20%20%20%20%20mStartX%20%3D%20startX%3B%0A%20%20%20%20%20%20%20%20mStartY%20%3D%20startY%3B%0A%20%20%20%20%20%20%20%20mFinalX%20%3D%20startX%20%2B%20dx%3B%0A%20%20%20%20%20%20%20%20mFinalY%20%3D%20startY%20%2B%20dy%3B%0A%20%20%20%20%20%20%20%20mDeltaX%20%3D%20dx%3B%0A%20%20%20%20%20%20%20%20mDeltaY%20%3D%20dy%3B%0A%20%20%20%20%20%20%20%20mDurationReciprocal%20%3D%201.0f%20%2F%20(float)%20mDuration%3B%0A%20%20%20%20%7D%0A%60%60%60%0A%0Ascroller.computeScrollOffset()%E6%96%B9%E6%B3%95%E4%BC%9A%E6%9B%B4%E5%85%B7%E5%BD%93%E5%89%8D%E6%97%B6%E9%97%B4%E6%B5%81%E9%80%9D%E5%88%A4%E6%96%AD%E6%98%AF%E5%90%A6%E5%8A%A8%E7%94%BB%E6%98%AF%E5%90%A6%E5%B7%B2%E7%BB%8F%E7%BB%93%E6%9D%9F%EF%BC%8C%E5%A6%82%E6%9E%9C%E6%B2%A1%E6%9C%89%E7%BB%93%E6%9D%9F%E5%B0%B1%E4%BC%9A%E8%BF%94%E5%9B%9ETrue%EF%BC%8C%E5%B9%B6%E4%B8%94%E5%86%85%E9%83%A8%E4%BC%9A%E5%AF%B9%E5%8A%A8%E7%94%BB%E4%B8%AD%E7%9A%84%E5%B1%9E%E6%80%A7%E8%BF%9B%E8%A1%8C%E6%9B%B4%E6%96%B0%EF%BC%8C%E8%BE%BE%E5%88%B0%E6%94%B9%E5%8F%98view%E7%8A%B6%E6%80%81%E7%9A%84%E6%95%88%E6%9E%9C%0A%60%60%60%0A%20%20%20%20public%20boolean%20computeScrollOffset()%20%7B%0A%20%20%20%20%20%20%20%20if%20(mFinished)%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20return%20false%3B%0A%20%20%20%20%20%20%20%20%7D%0A%0A%20%20%20%20%20%20%20%20int%20timePassed%20%3D%20(int)(AnimationUtils.currentAnimationTimeMillis()%20-%20mStartTime)%3B%0A%20%20%20%20%0A%20%20%20%20%20%20%20%20if%20(timePassed%20%3C%20mDuration)%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20switch%20(mMode)%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20case%20SCROLL_MODE%3A%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20final%20float%20x%20%3D%20mInterpolator.getInterpolation(timePassed%20*%20mDurationReciprocal)%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20mCurrX%20%3D%20mStartX%20%2B%20Math.round(x%20*%20mDeltaX)%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20mCurrY%20%3D%20mStartY%20%2B%20Math.round(x%20*%20mDeltaY)%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20break%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20case%20FLING_MODE%3A%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20final%20float%20t%20%3D%20(float)%20timePassed%20%2F%20mDuration%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20final%20int%20index%20%3D%20(int)%20(NB_SAMPLES%20*%20t)%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20float%20distanceCoef%20%3D%201.f%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20float%20velocityCoef%20%3D%200.f%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20if%20(index%20%3C%20NB_SAMPLES)%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20final%20float%20t_inf%20%3D%20(float)%20index%20%2F%20NB_SAMPLES%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20final%20float%20t_sup%20%3D%20(float)%20(index%20%2B%201)%20%2F%20NB_SAMPLES%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20final%20float%20d_inf%20%3D%20SPLINE_POSITION%5Bindex%5D%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20final%20float%20d_sup%20%3D%20SPLINE_POSITION%5Bindex%20%2B%201%5D%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20velocityCoef%20%3D%20(d_sup%20-%20d_inf)%20%2F%20(t_sup%20-%20t_inf)%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20distanceCoef%20%3D%20d_inf%20%2B%20(t%20-%20t_inf)%20*%20velocityCoef%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%7D%0A%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20mCurrVelocity%20%3D%20velocityCoef%20*%20mDistance%20%2F%20mDuration%20*%201000.0f%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20mCurrX%20%3D%20mStartX%20%2B%20Math.round(distanceCoef%20*%20(mFinalX%20-%20mStartX))%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%2F%2F%20Pin%20to%20mMinX%20%3C%3D%20mCurrX%20%3C%3D%20mMaxX%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20mCurrX%20%3D%20Math.min(mCurrX%2C%20mMaxX)%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20mCurrX%20%3D%20Math.max(mCurrX%2C%20mMinX)%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20mCurrY%20%3D%20mStartY%20%2B%20Math.round(distanceCoef%20*%20(mFinalY%20-%20mStartY))%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%2F%2F%20Pin%20to%20mMinY%20%3C%3D%20mCurrY%20%3C%3D%20mMaxY%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20mCurrY%20%3D%20Math.min(mCurrY%2C%20mMaxY)%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20mCurrY%20%3D%20Math.max(mCurrY%2C%20mMinY)%3B%0A%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20if%20(mCurrX%20%3D%3D%20mFinalX%20%26%26%20mCurrY%20%3D%3D%20mFinalY)%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20mFinished%20%3D%20true%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%7D%0A%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20break%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20else%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20mCurrX%20%3D%20mFinalX%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20mCurrY%20%3D%20mFinalY%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20mFinished%20%3D%20true%3B%0A%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20return%20true%3B%0A%20%20%20%20%7D%0A%60%60%60%0A</center></body></html>

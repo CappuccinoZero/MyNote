@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/><meta name="exporter-version" content="Evernote Mac 9.2.0 (458672)"/><meta name="author" content="林"/><meta name="created" content="2019-10-18 01:23:06 +0000"/><meta name="source" content="desktop.mac"/><meta name="updated" content="2019-10-18 01:29:05 +0000"/><meta name="content-class" content="yinxiang.markdown"/><title>合并两个排序的链表</title></head><body><div style="font-size: 14px; margin: 0; padding: 0; width: 100%;"><p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">输入两个单调递增的链表，输出两个链表合成后的链表，当然我们需要合成后的链表满足单调不减规则。</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">public ListNode Merge(ListNode list1,ListNode list2) {
+        ListNode curNode = list1;
+        ListNode node = list2;
+        ListNode temp;
+        ListNode last = null;
+        ListNode head = null;
+        if (curNode==null&amp;&amp;node!=null)
+            return node;
+        else if (curNode!=null&amp;&amp;node==null)
+            return curNode;
+        else if (curNode==null&amp;&amp;node==null)
+            return null;
+        while (true){
+            if (node.val &lt; curNode.val){
+                if (head == null){
+                    head = node;
+                }
+                //放前面
+                temp = node.next;
+                node.next = curNode;
+                if (last != null){
+                    last.next = node;
+                    last = node;
+                }
+                node = temp;
+                if (node == null){
+                    return head;
+                }
+            }else {
+                if (head == null){
+                    head = curNode;
+                }
+                //cur 指针后移动
+                if (curNode.next==null){
+                    //node1已经是最后一个
+                    curNode.next = node;
+                    return head;
+                }else {
+                    last = curNode;
+                    curNode = curNode.next;
+                }
+            }
+        }
+    }
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">思路：<br/>
+将第二个链节依次与第一个链节比较，如果小于则插入第一个链节前，否则第二个连节指针后移，当第一个链表已经遍历完毕，直接将第二个链表剩余部分插入后面。或者第二个链表遍历完毕返回结果。</p>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">反省：<br/>
+第二个链表的链节插入时，除了需要设置第二个链表的next外，还有设置第一个链表last的next，并且更新last为第二个链表插入的链节</p>
+</div><center style="display:none !important;visibility:collapse !important;height:0 !important;white-space:nowrap;width:100%;overflow:hidden">%E8%BE%93%E5%85%A5%E4%B8%A4%E4%B8%AA%E5%8D%95%E8%B0%83%E9%80%92%E5%A2%9E%E7%9A%84%E9%93%BE%E8%A1%A8%EF%BC%8C%E8%BE%93%E5%87%BA%E4%B8%A4%E4%B8%AA%E9%93%BE%E8%A1%A8%E5%90%88%E6%88%90%E5%90%8E%E7%9A%84%E9%93%BE%E8%A1%A8%EF%BC%8C%E5%BD%93%E7%84%B6%E6%88%91%E4%BB%AC%E9%9C%80%E8%A6%81%E5%90%88%E6%88%90%E5%90%8E%E7%9A%84%E9%93%BE%E8%A1%A8%E6%BB%A1%E8%B6%B3%E5%8D%95%E8%B0%83%E4%B8%8D%E5%87%8F%E8%A7%84%E5%88%99%E3%80%82%0A%0A%60%60%60%0Apublic%20ListNode%20Merge(ListNode%20list1%2CListNode%20list2)%20%7B%0A%20%20%20%20%20%20%20%20ListNode%20curNode%20%3D%20list1%3B%0A%20%20%20%20%20%20%20%20ListNode%20node%20%3D%20list2%3B%0A%20%20%20%20%20%20%20%20ListNode%20temp%3B%0A%20%20%20%20%20%20%20%20ListNode%20last%20%3D%20null%3B%0A%20%20%20%20%20%20%20%20ListNode%20head%20%3D%20null%3B%0A%20%20%20%20%20%20%20%20if%20(curNode%3D%3Dnull%26%26node!%3Dnull)%0A%20%20%20%20%20%20%20%20%20%20%20%20return%20node%3B%0A%20%20%20%20%20%20%20%20else%20if%20(curNode!%3Dnull%26%26node%3D%3Dnull)%0A%20%20%20%20%20%20%20%20%20%20%20%20return%20curNode%3B%0A%20%20%20%20%20%20%20%20else%20if%20(curNode%3D%3Dnull%26%26node%3D%3Dnull)%0A%20%20%20%20%20%20%20%20%20%20%20%20return%20null%3B%0A%20%20%20%20%20%20%20%20while%20(true)%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20if%20(node.val%20%3C%20curNode.val)%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20if%20(head%20%3D%3D%20null)%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20head%20%3D%20node%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%2F%2F%E6%94%BE%E5%89%8D%E9%9D%A2%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20temp%20%3D%20node.next%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20node.next%20%3D%20curNode%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20if%20(last%20!%3D%20null)%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20last.next%20%3D%20node%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20last%20%3D%20node%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20node%20%3D%20temp%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20if%20(node%20%3D%3D%20null)%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20return%20head%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20%20%20%20%20%7Delse%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20if%20(head%20%3D%3D%20null)%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20head%20%3D%20curNode%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%2F%2Fcur%20%E6%8C%87%E9%92%88%E5%90%8E%E7%A7%BB%E5%8A%A8%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20if%20(curNode.next%3D%3Dnull)%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%2F%2Fnode1%E5%B7%B2%E7%BB%8F%E6%98%AF%E6%9C%80%E5%90%8E%E4%B8%80%E4%B8%AA%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20curNode.next%20%3D%20node%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20return%20head%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%7Delse%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20last%20%3D%20curNode%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20curNode%20%3D%20curNode.next%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%7D%0A%60%60%60%0A%0A%E6%80%9D%E8%B7%AF%EF%BC%9A%0A%E5%B0%86%E7%AC%AC%E4%BA%8C%E4%B8%AA%E9%93%BE%E8%8A%82%E4%BE%9D%E6%AC%A1%E4%B8%8E%E7%AC%AC%E4%B8%80%E4%B8%AA%E9%93%BE%E8%8A%82%E6%AF%94%E8%BE%83%EF%BC%8C%E5%A6%82%E6%9E%9C%E5%B0%8F%E4%BA%8E%E5%88%99%E6%8F%92%E5%85%A5%E7%AC%AC%E4%B8%80%E4%B8%AA%E9%93%BE%E8%8A%82%E5%89%8D%EF%BC%8C%E5%90%A6%E5%88%99%E7%AC%AC%E4%BA%8C%E4%B8%AA%E8%BF%9E%E8%8A%82%E6%8C%87%E9%92%88%E5%90%8E%E7%A7%BB%EF%BC%8C%E5%BD%93%E7%AC%AC%E4%B8%80%E4%B8%AA%E9%93%BE%E8%A1%A8%E5%B7%B2%E7%BB%8F%E9%81%8D%E5%8E%86%E5%AE%8C%E6%AF%95%EF%BC%8C%E7%9B%B4%E6%8E%A5%E5%B0%86%E7%AC%AC%E4%BA%8C%E4%B8%AA%E9%93%BE%E8%A1%A8%E5%89%A9%E4%BD%99%E9%83%A8%E5%88%86%E6%8F%92%E5%85%A5%E5%90%8E%E9%9D%A2%E3%80%82%E6%88%96%E8%80%85%E7%AC%AC%E4%BA%8C%E4%B8%AA%E9%93%BE%E8%A1%A8%E9%81%8D%E5%8E%86%E5%AE%8C%E6%AF%95%E8%BF%94%E5%9B%9E%E7%BB%93%E6%9E%9C%E3%80%82%0A%0A%E5%8F%8D%E7%9C%81%EF%BC%9A%0A%E7%AC%AC%E4%BA%8C%E4%B8%AA%E9%93%BE%E8%A1%A8%E7%9A%84%E9%93%BE%E8%8A%82%E6%8F%92%E5%85%A5%E6%97%B6%EF%BC%8C%E9%99%A4%E4%BA%86%E9%9C%80%E8%A6%81%E8%AE%BE%E7%BD%AE%E7%AC%AC%E4%BA%8C%E4%B8%AA%E9%93%BE%E8%A1%A8%E7%9A%84next%E5%A4%96%EF%BC%8C%E8%BF%98%E6%9C%89%E8%AE%BE%E7%BD%AE%E7%AC%AC%E4%B8%80%E4%B8%AA%E9%93%BE%E8%A1%A8last%E7%9A%84next%EF%BC%8C%E5%B9%B6%E4%B8%94%E6%9B%B4%E6%96%B0last%E4%B8%BA%E7%AC%AC%E4%BA%8C%E4%B8%AA%E9%93%BE%E8%A1%A8%E6%8F%92%E5%85%A5%E7%9A%84%E9%93%BE%E8%8A%82</center></body></html>

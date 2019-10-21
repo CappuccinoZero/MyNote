@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/><meta name="exporter-version" content="Evernote Mac 9.2.0 (458672)"/><meta name="author" content="林"/><meta name="created" content="2019-09-30 13:57:33 +0000"/><meta name="source" content="desktop.mac"/><meta name="updated" content="2019-09-30 16:35:51 +0000"/><meta name="content-class" content="yinxiang.markdown"/><title>建造者模式</title></head><body><div style="font-size: 14px; margin: 0; padding: 0; width: 100%;"><div style="line-height: 160%; box-sizing: content-box;"><ul style="line-height: 160%; box-sizing: content-box; display: block; list-style-type: disc; padding-left: 30px; margin: 6px 0 10px; color: #333;"><li style="line-height: 160%; box-sizing: content-box; position: relative;"><a style="line-height: 160%; box-sizing: content-box; text-decoration: underline; color: #5286bc;">概念
+</a></li><li style="line-height: 160%; box-sizing: content-box; position: relative;"><a style="line-height: 160%; box-sizing: content-box; text-decoration: underline; color: #5286bc;">无需参数传递的建造者模式
+</a></li><li style="line-height: 160%; box-sizing: content-box; position: relative;"><a style="line-height: 160%; box-sizing: content-box; text-decoration: underline; color: #5286bc;">改造后，无需指挥官的建造者模式
+</a></li><li style="line-height: 160%; box-sizing: content-box; position: relative;"><a style="line-height: 160%; box-sizing: content-box; text-decoration: underline; color: #5286bc;">支持参数传递的建造者模式
+</a></li></ul></div><h2 style="line-height: 160%; box-sizing: content-box; font-weight: 700; font-size: 34px; border-bottom: 1px solid #dbdbdb; color: #333;">概念</h2>
+<blockquote style="line-height: 160%; box-sizing: content-box; margin: 15px 0; border-left: 4px solid #ddd; padding: 0 15px; color: #777;">
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333; margin-top: 0; margin-bottom: 0;">建造者模式是一种将复杂对象的构建与他的表示分离，使得同样的构建过程可以创建不同的表现方式。</p>
+</blockquote>
+<ul style="line-height: 160%; box-sizing: content-box; display: block; list-style-type: disc; padding-left: 30px; margin: 6px 0 10px; color: #333;">
+<li style="line-height: 160%; box-sizing: content-box; position: relative;">多个部件装配到同一个对象中，产生不同的结果</li>
+<li style="line-height: 160%; box-sizing: content-box; position: relative;">初始化参数时，参数过多，许多参数都有默认值</li>
+<li style="line-height: 160%; box-sizing: content-box; position: relative;">需要生产的产品具有相同的内部结构，并且都具有共性</li>
+<li style="line-height: 160%; box-sizing: content-box; position: relative;">隐藏了复杂的构建过程</li>
+<li style="line-height: 160%; box-sizing: content-box; position: relative;">代码的复用性，封装性</li>
+<li style="line-height: 160%; box-sizing: content-box; position: relative;">简化了创建流程</li>
+</ul>
+<h2 style="line-height: 160%; box-sizing: content-box; font-weight: 700; font-size: 34px; border-bottom: 1px solid #dbdbdb; color: #333;">无需参数传递的建造者模式</h2>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">一个电脑类</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">class Computer {
+    var cpu = "default_cpu"
+    var gpu = "default_gpu"
+    var memory = "default_memory"
+    var screen = "default_screen"
+}
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">建造者接口，其中定义了建造的部件</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">interface Builder {
+    fun cpu()
+    fun screen()
+    fun memory()
+    fun gpu()
+    fun build():Computer
+}
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">戴尔某款电脑的建造者，其中部件已经内定，外部无需关注</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">class DellBuilder:Builder {
+
+    private val mComputer = Computer()
+    override fun cpu() {
+        mComputer.cpu = "dell_cpu"
+    }
+
+    override fun screen() {
+        mComputer.screen = "dell_screen"
+    }
+
+    override fun memory() {
+        mComputer.memory = "dell_memory"
+    }
+
+    override fun gpu() {
+        mComputer.gpu = "dell_gpu"
+    }
+    override fun build() = mComputer
+}
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">苹果电脑的建造者，同上</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">class AppleBuilder:Builder {
+
+    private val MacBook = Computer()
+    override fun cpu() {
+        MacBook.cpu = "MacBook_cpu"
+    }
+
+    override fun screen() {
+        MacBook.screen = "MacBook_screen"
+    }
+
+    override fun memory() {
+        MacBook.memory = "MacBook_memory"
+    }
+
+    override fun gpu() {
+        MacBook.gpu = "MacBook_gpu"
+    }
+
+    override fun build() = MacBook
+}
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">指挥者，负责指挥建造者怎么生产电脑</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">class Director(builder:Builder) {
+    private val builder = builder
+
+    fun constract() = builder.run {
+        cpu()
+        gpu()
+        memory()
+        screen()
+        build()
+    }
+}
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">电脑建造实现</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">fun main(args:Array&lt;String&gt;){
+    val dellDirector = Director(DellBuilder())
+    val dell_xps = dellDirector.constract()
+
+    val appleDirector = Director(AppleBuilder())
+    val macBook = appleDirector.constract()
+}
+</code></pre>
+<h2 style="line-height: 160%; box-sizing: content-box; font-weight: 700; font-size: 34px; border-bottom: 1px solid #dbdbdb; color: #333;">改造后，无需指挥官的建造者模式</h2>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">特点：虽然简化了，但是不符合职责单一原则，并且如果构建模式较为复杂，不适合使用</p>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">将建造者接口换为抽象类，并且实现build()方法</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">abstract class Builder {
+    protected abstract fun cpu()
+    protected abstract fun screen()
+    protected abstract fun memory()
+    protected abstract fun gpu()
+    protected abstract fun createComputer():Computer
+    fun build() = run{
+        cpu()
+        screen()
+        memory()
+        gpu()
+        createComputer()
+    }
+}
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">建造者增加 createComputer()</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">class DellBuilder:Builder() {
+
+    private val mComputer = Computer()
+    override fun cpu() {
+        mComputer.cpu = "dell_cpu"
+    }
+
+    override fun screen() {
+        mComputer.screen = "dell_screen"
+    }
+
+    override fun memory() {
+        mComputer.memory = "dell_memory"
+    }
+
+    override fun gpu() {
+        mComputer.gpu = "dell_gpu"
+    }
+
+    override fun createComputer(): Computer {
+        return mComputer
+    }
+}
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">建造电脑：</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">val dell_xps = DellBuilder().build()
+</code></pre>
+<h2 style="line-height: 160%; box-sizing: content-box; font-weight: 700; font-size: 34px; border-bottom: 1px solid #dbdbdb; color: #333;">支持参数传递的建造者模式</h2>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">具体实现代码：</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">    var cpu = builder.cpu
+    var gpu = builder.gpu
+    var memory = builder.memory
+    var screen = builder.screen
+    object Builder{
+        var cpu = "default_cpu"
+        var gpu = "default_gpu"
+        var memory = "default_memory"
+        var screen = "default_screen"
+        fun cpu(cpu:String) = apply{
+            this.cpu = cpu
+        }
+        fun gpu(gpu:String) = apply {
+            this.gpu = gpu
+        }
+        fun memory(memory:String) = apply {
+            this.memory = memory
+        }
+        fun screen(screen:String) = apply {
+            this.screen = screen
+        }
+        fun build() = Computer(this)
+    }
+}
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">建造电脑：</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">val macBook = Computer.Builder
+        .cpu("apple_cpu")
+        .gpu("apple_gpu")
+        .memory("apple_memory")
+        .screen("apple_screen")
+        .build()
+</code></pre>
+</div><center style="display:none !important;visibility:collapse !important;height:0 !important;white-space:nowrap;width:100%;overflow:hidden">%5BTOC%5D%0A%23%23%20%E6%A6%82%E5%BF%B5%0A%3E%E5%BB%BA%E9%80%A0%E8%80%85%E6%A8%A1%E5%BC%8F%E6%98%AF%E4%B8%80%E7%A7%8D%E5%B0%86%E5%A4%8D%E6%9D%82%E5%AF%B9%E8%B1%A1%E7%9A%84%E6%9E%84%E5%BB%BA%E4%B8%8E%E4%BB%96%E7%9A%84%E8%A1%A8%E7%A4%BA%E5%88%86%E7%A6%BB%EF%BC%8C%E4%BD%BF%E5%BE%97%E5%90%8C%E6%A0%B7%E7%9A%84%E6%9E%84%E5%BB%BA%E8%BF%87%E7%A8%8B%E5%8F%AF%E4%BB%A5%E5%88%9B%E5%BB%BA%E4%B8%8D%E5%90%8C%E7%9A%84%E8%A1%A8%E7%8E%B0%E6%96%B9%E5%BC%8F%E3%80%82%0A*%20%E5%A4%9A%E4%B8%AA%E9%83%A8%E4%BB%B6%E8%A3%85%E9%85%8D%E5%88%B0%E5%90%8C%E4%B8%80%E4%B8%AA%E5%AF%B9%E8%B1%A1%E4%B8%AD%EF%BC%8C%E4%BA%A7%E7%94%9F%E4%B8%8D%E5%90%8C%E7%9A%84%E7%BB%93%E6%9E%9C%0A*%20%E5%88%9D%E5%A7%8B%E5%8C%96%E5%8F%82%E6%95%B0%E6%97%B6%EF%BC%8C%E5%8F%82%E6%95%B0%E8%BF%87%E5%A4%9A%EF%BC%8C%E8%AE%B8%E5%A4%9A%E5%8F%82%E6%95%B0%E9%83%BD%E6%9C%89%E9%BB%98%E8%AE%A4%E5%80%BC%0A*%20%E9%9C%80%E8%A6%81%E7%94%9F%E4%BA%A7%E7%9A%84%E4%BA%A7%E5%93%81%E5%85%B7%E6%9C%89%E7%9B%B8%E5%90%8C%E7%9A%84%E5%86%85%E9%83%A8%E7%BB%93%E6%9E%84%EF%BC%8C%E5%B9%B6%E4%B8%94%E9%83%BD%E5%85%B7%E6%9C%89%E5%85%B1%E6%80%A7%0A*%20%E9%9A%90%E8%97%8F%E4%BA%86%E5%A4%8D%E6%9D%82%E7%9A%84%E6%9E%84%E5%BB%BA%E8%BF%87%E7%A8%8B%0A*%20%E4%BB%A3%E7%A0%81%E7%9A%84%E5%A4%8D%E7%94%A8%E6%80%A7%EF%BC%8C%E5%B0%81%E8%A3%85%E6%80%A7%0A*%20%E7%AE%80%E5%8C%96%E4%BA%86%E5%88%9B%E5%BB%BA%E6%B5%81%E7%A8%8B%0A%23%23%20%E6%97%A0%E9%9C%80%E5%8F%82%E6%95%B0%E4%BC%A0%E9%80%92%E7%9A%84%E5%BB%BA%E9%80%A0%E8%80%85%E6%A8%A1%E5%BC%8F%0A%E4%B8%80%E4%B8%AA%E7%94%B5%E8%84%91%E7%B1%BB%0A%60%60%60%0Aclass%20Computer%20%7B%0A%20%20%20%20var%20cpu%20%3D%20%22default_cpu%22%0A%20%20%20%20var%20gpu%20%3D%20%22default_gpu%22%0A%20%20%20%20var%20memory%20%3D%20%22default_memory%22%0A%20%20%20%20var%20screen%20%3D%20%22default_screen%22%0A%7D%0A%60%60%60%0A%E5%BB%BA%E9%80%A0%E8%80%85%E6%8E%A5%E5%8F%A3%EF%BC%8C%E5%85%B6%E4%B8%AD%E5%AE%9A%E4%B9%89%E4%BA%86%E5%BB%BA%E9%80%A0%E7%9A%84%E9%83%A8%E4%BB%B6%0A%60%60%60%0Ainterface%20Builder%20%7B%0A%20%20%20%20fun%20cpu()%0A%20%20%20%20fun%20screen()%0A%20%20%20%20fun%20memory()%0A%20%20%20%20fun%20gpu()%0A%20%20%20%20fun%20build()%3AComputer%0A%7D%0A%60%60%60%0A%E6%88%B4%E5%B0%94%E6%9F%90%E6%AC%BE%E7%94%B5%E8%84%91%E7%9A%84%E5%BB%BA%E9%80%A0%E8%80%85%EF%BC%8C%E5%85%B6%E4%B8%AD%E9%83%A8%E4%BB%B6%E5%B7%B2%E7%BB%8F%E5%86%85%E5%AE%9A%EF%BC%8C%E5%A4%96%E9%83%A8%E6%97%A0%E9%9C%80%E5%85%B3%E6%B3%A8%0A%60%60%60%0Aclass%20DellBuilder%3ABuilder%20%7B%0A%0A%20%20%20%20private%20val%20mComputer%20%3D%20Computer()%0A%20%20%20%20override%20fun%20cpu()%20%7B%0A%20%20%20%20%20%20%20%20mComputer.cpu%20%3D%20%22dell_cpu%22%0A%20%20%20%20%7D%0A%0A%20%20%20%20override%20fun%20screen()%20%7B%0A%20%20%20%20%20%20%20%20mComputer.screen%20%3D%20%22dell_screen%22%0A%20%20%20%20%7D%0A%0A%20%20%20%20override%20fun%20memory()%20%7B%0A%20%20%20%20%20%20%20%20mComputer.memory%20%3D%20%22dell_memory%22%0A%20%20%20%20%7D%0A%0A%20%20%20%20override%20fun%20gpu()%20%7B%0A%20%20%20%20%20%20%20%20mComputer.gpu%20%3D%20%22dell_gpu%22%0A%20%20%20%20%7D%0A%20%20%20%20override%20fun%20build()%20%3D%20mComputer%0A%7D%0A%60%60%60%0A%E8%8B%B9%E6%9E%9C%E7%94%B5%E8%84%91%E7%9A%84%E5%BB%BA%E9%80%A0%E8%80%85%EF%BC%8C%E5%90%8C%E4%B8%8A%0A%60%60%60%0Aclass%20AppleBuilder%3ABuilder%20%7B%0A%0A%20%20%20%20private%20val%20MacBook%20%3D%20Computer()%0A%20%20%20%20override%20fun%20cpu()%20%7B%0A%20%20%20%20%20%20%20%20MacBook.cpu%20%3D%20%22MacBook_cpu%22%0A%20%20%20%20%7D%0A%0A%20%20%20%20override%20fun%20screen()%20%7B%0A%20%20%20%20%20%20%20%20MacBook.screen%20%3D%20%22MacBook_screen%22%0A%20%20%20%20%7D%0A%0A%20%20%20%20override%20fun%20memory()%20%7B%0A%20%20%20%20%20%20%20%20MacBook.memory%20%3D%20%22MacBook_memory%22%0A%20%20%20%20%7D%0A%0A%20%20%20%20override%20fun%20gpu()%20%7B%0A%20%20%20%20%20%20%20%20MacBook.gpu%20%3D%20%22MacBook_gpu%22%0A%20%20%20%20%7D%0A%0A%20%20%20%20override%20fun%20build()%20%3D%20MacBook%0A%7D%0A%60%60%60%0A%E6%8C%87%E6%8C%A5%E8%80%85%EF%BC%8C%E8%B4%9F%E8%B4%A3%E6%8C%87%E6%8C%A5%E5%BB%BA%E9%80%A0%E8%80%85%E6%80%8E%E4%B9%88%E7%94%9F%E4%BA%A7%E7%94%B5%E8%84%91%0A%60%60%60%0Aclass%20Director(builder%3ABuilder)%20%7B%0A%20%20%20%20private%20val%20builder%20%3D%20builder%0A%0A%20%20%20%20fun%20constract()%20%3D%20builder.run%20%7B%0A%20%20%20%20%20%20%20%20cpu()%0A%20%20%20%20%20%20%20%20gpu()%0A%20%20%20%20%20%20%20%20memory()%0A%20%20%20%20%20%20%20%20screen()%0A%20%20%20%20%20%20%20%20build()%0A%20%20%20%20%7D%0A%7D%0A%60%60%60%0A%E7%94%B5%E8%84%91%E5%BB%BA%E9%80%A0%E5%AE%9E%E7%8E%B0%0A%60%60%60%0Afun%20main(args%3AArray%3CString%3E)%7B%0A%20%20%20%20val%20dellDirector%20%3D%20Director(DellBuilder())%0A%20%20%20%20val%20dell_xps%20%3D%20dellDirector.constract()%0A%0A%20%20%20%20val%20appleDirector%20%3D%20Director(AppleBuilder())%0A%20%20%20%20val%20macBook%20%3D%20appleDirector.constract()%0A%7D%0A%60%60%60%0A%0A%23%23%20%E6%94%B9%E9%80%A0%E5%90%8E%EF%BC%8C%E6%97%A0%E9%9C%80%E6%8C%87%E6%8C%A5%E5%AE%98%E7%9A%84%E5%BB%BA%E9%80%A0%E8%80%85%E6%A8%A1%E5%BC%8F%0A%E7%89%B9%E7%82%B9%EF%BC%9A%E8%99%BD%E7%84%B6%E7%AE%80%E5%8C%96%E4%BA%86%EF%BC%8C%E4%BD%86%E6%98%AF%E4%B8%8D%E7%AC%A6%E5%90%88%E8%81%8C%E8%B4%A3%E5%8D%95%E4%B8%80%E5%8E%9F%E5%88%99%EF%BC%8C%E5%B9%B6%E4%B8%94%E5%A6%82%E6%9E%9C%E6%9E%84%E5%BB%BA%E6%A8%A1%E5%BC%8F%E8%BE%83%E4%B8%BA%E5%A4%8D%E6%9D%82%EF%BC%8C%E4%B8%8D%E9%80%82%E5%90%88%E4%BD%BF%E7%94%A8%0A%0A%E5%B0%86%E5%BB%BA%E9%80%A0%E8%80%85%E6%8E%A5%E5%8F%A3%E6%8D%A2%E4%B8%BA%E6%8A%BD%E8%B1%A1%E7%B1%BB%EF%BC%8C%E5%B9%B6%E4%B8%94%E5%AE%9E%E7%8E%B0build()%E6%96%B9%E6%B3%95%0A%60%60%60%0Aabstract%20class%20Builder%20%7B%0A%20%20%20%20protected%20abstract%20fun%20cpu()%0A%20%20%20%20protected%20abstract%20fun%20screen()%0A%20%20%20%20protected%20abstract%20fun%20memory()%0A%20%20%20%20protected%20abstract%20fun%20gpu()%0A%20%20%20%20protected%20abstract%20fun%20createComputer()%3AComputer%0A%20%20%20%20fun%20build()%20%3D%20run%7B%0A%20%20%20%20%20%20%20%20cpu()%0A%20%20%20%20%20%20%20%20screen()%0A%20%20%20%20%20%20%20%20memory()%0A%20%20%20%20%20%20%20%20gpu()%0A%20%20%20%20%20%20%20%20createComputer()%0A%20%20%20%20%7D%0A%7D%0A%60%60%60%0A%E5%BB%BA%E9%80%A0%E8%80%85%E5%A2%9E%E5%8A%A0%20createComputer()%0A%60%60%60%0Aclass%20DellBuilder%3ABuilder()%20%7B%0A%0A%20%20%20%20private%20val%20mComputer%20%3D%20Computer()%0A%20%20%20%20override%20fun%20cpu()%20%7B%0A%20%20%20%20%20%20%20%20mComputer.cpu%20%3D%20%22dell_cpu%22%0A%20%20%20%20%7D%0A%0A%20%20%20%20override%20fun%20screen()%20%7B%0A%20%20%20%20%20%20%20%20mComputer.screen%20%3D%20%22dell_screen%22%0A%20%20%20%20%7D%0A%0A%20%20%20%20override%20fun%20memory()%20%7B%0A%20%20%20%20%20%20%20%20mComputer.memory%20%3D%20%22dell_memory%22%0A%20%20%20%20%7D%0A%0A%20%20%20%20override%20fun%20gpu()%20%7B%0A%20%20%20%20%20%20%20%20mComputer.gpu%20%3D%20%22dell_gpu%22%0A%20%20%20%20%7D%0A%0A%20%20%20%20override%20fun%20createComputer()%3A%20Computer%20%7B%0A%20%20%20%20%20%20%20%20return%20mComputer%0A%20%20%20%20%7D%0A%7D%0A%60%60%60%0A%E5%BB%BA%E9%80%A0%E7%94%B5%E8%84%91%EF%BC%9A%0A%60%60%60%0Aval%20dell_xps%20%3D%20DellBuilder().build()%0A%60%60%60%0A%0A%23%23%20%E6%94%AF%E6%8C%81%E5%8F%82%E6%95%B0%E4%BC%A0%E9%80%92%E7%9A%84%E5%BB%BA%E9%80%A0%E8%80%85%E6%A8%A1%E5%BC%8F%0A%0A%E5%85%B7%E4%BD%93%E5%AE%9E%E7%8E%B0%E4%BB%A3%E7%A0%81%EF%BC%9A%0A%60%60%60%0A%20%20%20%20var%20cpu%20%3D%20builder.cpu%0A%20%20%20%20var%20gpu%20%3D%20builder.gpu%0A%20%20%20%20var%20memory%20%3D%20builder.memory%0A%20%20%20%20var%20screen%20%3D%20builder.screen%0A%20%20%20%20object%20Builder%7B%0A%20%20%20%20%20%20%20%20var%20cpu%20%3D%20%22default_cpu%22%0A%20%20%20%20%20%20%20%20var%20gpu%20%3D%20%22default_gpu%22%0A%20%20%20%20%20%20%20%20var%20memory%20%3D%20%22default_memory%22%0A%20%20%20%20%20%20%20%20var%20screen%20%3D%20%22default_screen%22%0A%20%20%20%20%20%20%20%20fun%20cpu(cpu%3AString)%20%3D%20apply%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20this.cpu%20%3D%20cpu%0A%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20fun%20gpu(gpu%3AString)%20%3D%20apply%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20this.gpu%20%3D%20gpu%0A%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20fun%20memory(memory%3AString)%20%3D%20apply%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20this.memory%20%3D%20memory%0A%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20fun%20screen(screen%3AString)%20%3D%20apply%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20this.screen%20%3D%20screen%0A%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20fun%20build()%20%3D%20Computer(this)%0A%20%20%20%20%7D%0A%7D%0A%60%60%60%0A%E5%BB%BA%E9%80%A0%E7%94%B5%E8%84%91%EF%BC%9A%0A%60%60%60%0Aval%20macBook%20%3D%20Computer.Builder%0A%20%20%20%20%20%20%20%20.cpu(%22apple_cpu%22)%0A%20%20%20%20%20%20%20%20.gpu(%22apple_gpu%22)%0A%20%20%20%20%20%20%20%20.memory(%22apple_memory%22)%0A%20%20%20%20%20%20%20%20.screen(%22apple_screen%22)%0A%20%20%20%20%20%20%20%20.build()%0A%60%60%60</center></body></html>

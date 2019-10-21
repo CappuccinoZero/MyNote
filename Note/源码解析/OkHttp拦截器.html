@@ -1,0 +1,441 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/><meta name="exporter-version" content="Evernote Mac 9.2.0 (458672)"/><meta name="author" content="林"/><meta name="created" content="2019-10-16 08:49:20 +0000"/><meta name="source" content="desktop.mac"/><meta name="updated" content="2019-10-16 09:34:30 +0000"/><meta name="content-class" content="yinxiang.markdown"/><title>OkHttp拦截器</title></head><body><div style="font-size: 14px; margin: 0; padding: 0; width: 100%;"><pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">client.newCall(request).enqueue(new Callback(){...})
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">一个简单的一部请求</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">@Override 
+public Call newCall(Request request) {
+    return new RealCall(this, request, false /* for web socket */);
+  }
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">newCall就是创建了一个RealCall</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">@Override 
+public void enqueue(Callback responseCallback) {
+    synchronized (this) {
+      if (executed) throw new IllegalStateException("Already Executed");
+      executed = true;
+    }
+    captureCallStackTrace();
+    client.dispatcher().enqueue(new AsyncCall(responseCallback));
+  }
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">最终调用dispatcher内部的enqueue，将请求加入到任务队列中，并且将RealCall转换为AsyncCall</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">@Override 
+protected void execute() {
+      boolean signalledCallback = false;
+      try {
+        //通过拦截器链访问了各个拦截器，执行了相关逻辑，并且从网络中获得了请求响应
+        Response response = getResponseWithInterceptorChain();
+        if (retryAndFollowUpInterceptor.isCanceled()) {
+          signalledCallback = true;
+          responseCallback.onFailure(RealCall.this, new IOException("Canceled"));
+        } else {
+          signalledCallback = true;
+          responseCallback.onResponse(RealCall.this, response);
+        }
+      } catch (IOException e) {
+        if (signalledCallback) {
+          // Do not signal the callback twice!
+          Platform.get().log(INFO, "Callback failure for " + toLoggableString(), e);
+        } else {
+          responseCallback.onFailure(RealCall.this, e);
+        }
+      } finally {
+        //最后将请求移除任务队列
+        client.dispatcher().finished(this);
+      }
+    }
+  }
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">构建拦截器链源码</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">Response getResponseWithInterceptorChain() throws IOException {
+    // Build a full stack of interceptors.
+    List&lt;Interceptor&gt; interceptors = new ArrayList&lt;&gt;();
+    //用户自定义的拦截器
+    interceptors.addAll(client.interceptors());
+    //网络重试拦截器
+    interceptors.add(retryAndFollowUpInterceptor);
+    //加入请求头各个参数拦截器
+    interceptors.add(new BridgeInterceptor(client.cookieJar()));
+    //缓存拦截器，处理缓存
+    interceptors.add(new CacheInterceptor(client.internalCache()));
+    //连接拦截器，获得连接(real_connection)
+    interceptors.add(new ConnectInterceptor(client));
+    if (!forWebSocket) {
+      interceptors.addAll(client.networkInterceptors());
+    }
+    //服务器请求链，用户发起真正的网络请求
+    interceptors.add(new CallServerInterceptor(forWebSocket));
+    
+    //实例化一个拦截器链，并且执行proceed()方法
+    Interceptor.Chain chain = new RealInterceptorChain(
+        interceptors, null, null, null, 0, originalRequest);
+    return chain.proceed(originalRequest);
+  }
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">proceed()方法</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">#RealInterceptorChain#class：
+
+@Override 
+public Response proceed(Request request) throws IOException {
+    return proceed(request, streamAllocation, httpCodec, connection);
+  }
+
+  public Response proceed(Request request, StreamAllocation streamAllocation, HttpCodec httpCodec,
+      RealConnection connection) throws IOException {
+
+    ......
+    // Call the next interceptor in the chain.
+    //新实例化(index+1)下一个拦截器链对象
+    RealInterceptorChain next = new RealInterceptorChain(
+        interceptors, streamAllocation, httpCodec, connection, index + 1, request);
+    //获取当前拦截器对象
+    Interceptor interceptor = interceptors.get(index);
+    //执行当前拦截器的拦截逻辑，并且将下一个拦截器链传入
+    Response response = interceptor.intercept(next);
+    
+    ...... 
+
+    return response;
+  }
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">interceptor.intercept():</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">public final class RetryAndFollowUpInterceptor implements Interceptor {
+    @Override public Response intercept(Chain chain) throws IOException {
+    Request request = chain.request();
+
+    streamAllocation = new StreamAllocation(
+        client.connectionPool(), createAddress(request.url()), callStackTrace);
+
+    int followUpCount = 0;
+    Response priorResponse = null;
+    //用于网络请求失败重试
+    while (true) {
+      if (canceled) {
+        streamAllocation.release();
+        throw new IOException("Canceled");
+      }
+
+      Response response = null;
+      boolean releaseConnection = true;
+      try {
+       //执行下一个拦截器链的proceed方法
+        response = ((RealInterceptorChain) chain).proceed(request, streamAllocation, null, null);
+        releaseConnection = false;
+      } catch (RouteException e) {
+        // The attempt to connect via a route failed. The request will not have been sent.
+        if (!recover(e.getLastConnectException(), false, request)) {
+          throw e.getLastConnectException();
+        }
+        releaseConnection = false;
+        continue;
+      } catch (IOException e) {
+        // An attempt to communicate with a server failed. The request may have been sent.
+        boolean requestSendStarted = !(e instanceof ConnectionShutdownException);
+        if (!recover(e, requestSendStarted, request)) throw e;
+        releaseConnection = false;
+        continue;
+      } finally {
+        // We're throwing an unchecked exception. Release any resources.
+        if (releaseConnection) {
+          streamAllocation.streamFailed(null);
+          streamAllocation.release();
+        }
+      }
+
+      // Attach the prior response if it exists. Such responses never have a body.
+      ......
+
+      Request followUp = followUpRequest(response);
+
+
+      closeQuietly(response.body());
+      ...
+    }
+  }
+}
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">可以得出结论：<br/>
+一个拦截器所执行的拦截操作：</p>
+<ul style="line-height: 160%; box-sizing: content-box; display: block; list-style-type: disc; padding-left: 30px; margin: 6px 0 10px; color: #333;">
+<li style="line-height: 160%; box-sizing: content-box; position: relative;">在发起请求前对request进行处理</li>
+<li style="line-height: 160%; box-sizing: content-box; position: relative;">在一个拦截器链中实例化下一个拦截器链 #proceed()</li>
+<li style="line-height: 160%; box-sizing: content-box; position: relative;">在拦截器链中执行的拦截器方法 #proceed()-&gt;intercept()</li>
+<li style="line-height: 160%; box-sizing: content-box; position: relative;">在拦截器中执行相关的拦截逻辑，然后再使用下一个拦截器的proceed()方法，获得网络请求的response，并且执行下一拦截器的逻辑</li>
+</ul>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">RealInterceptorChain</p>
+<ul style="line-height: 160%; box-sizing: content-box; display: block; list-style-type: disc; padding-left: 30px; margin: 6px 0 10px; color: #333;">
+<li style="line-height: 160%; box-sizing: content-box; position: relative;">网络请求失败时重试</li>
+<li style="line-height: 160%; box-sizing: content-box; position: relative;">网络重定向时发起新的请求，并且在允许下复用同一连接</li>
+</ul>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">public final class BridgeInterceptor implements Interceptor {
+  private final CookieJar cookieJar;
+
+  public BridgeInterceptor(CookieJar cookieJar) {
+    this.cookieJar = cookieJar;
+  }
+
+  @Override public Response intercept(Chain chain) throws IOException {
+    Log.e("haha", "BridgeInterceptor.intercept");
+    Request userRequest = chain.request();
+    Request.Builder requestBuilder = userRequest.newBuilder();
+
+    RequestBody body = userRequest.body();
+    if (body != null) {
+      MediaType contentType = body.contentType();
+      if (contentType != null) {
+        requestBuilder.header("Content-Type", contentType.toString());
+      }
+
+      long contentLength = body.contentLength();
+      if (contentLength != -1) {
+        requestBuilder.header("Content-Length", Long.toString(contentLength));
+        requestBuilder.removeHeader("Transfer-Encoding");
+      } else {
+        requestBuilder.header("Transfer-Encoding", "chunked");
+        requestBuilder.removeHeader("Content-Length");
+      }
+    }
+
+    if (userRequest.header("Host") == null) {
+      requestBuilder.header("Host", hostHeader(userRequest.url(), false));
+    }
+
+    if (userRequest.header("Connection") == null) {
+      requestBuilder.header("Connection", "Keep-Alive");
+    }
+
+    // If we add an "Accept-Encoding: gzip" header field we're responsible for also decompressing
+    // the transfer stream.
+    boolean transparentGzip = false;
+    if (userRequest.header("Accept-Encoding") == null &amp;&amp; userRequest.header("Range") == null) {
+      transparentGzip = true;
+      requestBuilder.header("Accept-Encoding", "gzip");
+    }
+
+    List&lt;Cookie&gt; cookies = cookieJar.loadForRequest(userRequest.url());
+    if (!cookies.isEmpty()) {
+      requestBuilder.header("Cookie", cookieHeader(cookies));
+    }
+
+    if (userRequest.header("User-Agent") == null) {
+      requestBuilder.header("User-Agent", Version.userAgent());
+    }
+
+    Response networkResponse = chain.proceed(requestBuilder.build());
+
+    HttpHeaders.receiveHeaders(cookieJar, userRequest.url(), networkResponse.headers());
+
+    Response.Builder responseBuilder = networkResponse.newBuilder()
+        .request(userRequest);
+
+    if (transparentGzip
+        &amp;&amp; "gzip".equalsIgnoreCase(networkResponse.header("Content-Encoding"))
+        &amp;&amp; HttpHeaders.hasBody(networkResponse)) {
+      GzipSource responseBody = new GzipSource(networkResponse.body().source());
+      Headers strippedHeaders = networkResponse.headers().newBuilder()
+          .removeAll("Content-Encoding")
+          .removeAll("Content-Length")
+          .build();
+      responseBuilder.headers(strippedHeaders);
+      responseBuilder.body(new RealResponseBody(strippedHeaders, Okio.buffer(responseBody)));
+    }
+
+    return responseBuilder.build();
+  }
+}
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">BridgeInterceptor</p>
+<ul style="line-height: 160%; box-sizing: content-box; display: block; list-style-type: disc; padding-left: 30px; margin: 6px 0 10px; color: #333;">
+<li style="line-height: 160%; box-sizing: content-box; position: relative;">配置request的请求头参数（Accept-Encoding：gzip：使用gzip压缩，Content-Length：？：内容长度。。。）</li>
+</ul>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">CacheInterceptor</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">@Override public Response intercept(Chain chain) throws IOException {
+    //查看是否有可用的缓存
+    Response cacheCandidate = cache != null
+        ? cache.get(chain.request())
+        : null;
+
+    long now = System.currentTimeMillis();
+    
+    //获取当前的缓存策略，获取网络请求以及缓存的响应
+    CacheStrategy strategy = new CacheStrategy.Factory(now, chain.request(), cacheCandidate).get();
+    Request networkRequest = strategy.networkRequest;
+    Response cacheResponse = strategy.cacheResponse;
+
+    //更新击中率信息
+    if (cache != null) {
+      cache.trackResponse(strategy);
+    }
+
+    //如果当前的缓存不可用，关掉它
+    if (cacheCandidate != null &amp;&amp; cacheResponse == null) {
+      closeQuietly(cacheCandidate.body()); // The cache candidate wasn't applicable. Close it.
+    }
+
+    // 如果网络请求不能用，并且没有可用缓存，直接返回504
+    if (networkRequest == null &amp;&amp; cacheResponse == null) {
+      return new Response.Builder()
+          .request(chain.request())
+          .protocol(Protocol.HTTP_1_1)
+          .code(504)
+          .message("Unsatisfiable Request (only-if-cached)")
+          .body(Util.EMPTY_RESPONSE)
+          .sentRequestAtMillis(-1L)
+          .receivedResponseAtMillis(System.currentTimeMillis())
+          .build();
+    }
+
+    // 如果网络请求不能用，直接返回可用缓存
+    if (networkRequest == null) {
+      return cacheResponse.newBuilder()
+          .cacheResponse(stripBody(cacheResponse))
+          .build();
+    }
+
+    //与服务器进行通信，获得服务器回应
+    Response networkResponse = null;
+    try {
+      networkResponse = chain.proceed(networkRequest);
+    } finally {
+      // If we're crashing on I/O or otherwise, don't leak the cache body.
+      if (networkResponse == null &amp;&amp; cacheCandidate != null) {
+        closeQuietly(cacheCandidate.body());
+      }
+    }
+
+    // 缓存不为空，说明目前在做有条件的请求
+    if (cacheResponse != null) {
+        //服务器说缓存还可以用，直接将网络响应和缓存结合起来返回
+      if (networkResponse.code() == HTTP_NOT_MODIFIED) {
+        Response response = cacheResponse.newBuilder()
+            .headers(combine(cacheResponse.headers(), networkResponse.headers()))
+            .sentRequestAtMillis(networkResponse.sentRequestAtMillis())
+            .receivedResponseAtMillis(networkResponse.receivedResponseAtMillis())
+            .cacheResponse(stripBody(cacheResponse))
+            .networkResponse(stripBody(networkResponse))
+            .build();
+        networkResponse.body().close();
+
+        // Update the cache after combining headers but before stripping the
+        // Content-Encoding header (as performed by initContentStream()).
+        cache.trackConditionalCacheHit();
+        cache.update(cacheResponse, response);
+        return response;
+      } else {
+        //缓存过期不能用了，关闭它
+        closeQuietly(cacheResponse.body());
+      }
+    }
+    
+    //以下是缓存为空的情况
+    //整合响应整合
+    Response response = networkResponse.newBuilder()
+        .cacheResponse(stripBody(cacheResponse))
+        .networkResponse(stripBody(networkResponse))
+        .build();
+
+    //如果缓存集不为空
+    if (cache != null) {
+        //可以缓存，将网络响应交给缓存，然后返回响应
+      if (HttpHeaders.hasBody(response) &amp;&amp; CacheStrategy.isCacheable(response, networkRequest)) {
+        // Offer this request to the cache.
+        CacheRequest cacheRequest = cache.put(response);
+        return cacheWritingResponse(cacheRequest, response);
+      }
+      
+      //不缓存，直接去掉缓存
+      if (HttpMethod.invalidatesCache(networkRequest.method())) {
+        try {
+          cache.remove(networkRequest);
+        } catch (IOException ignored) {
+          // The cache cannot be written.
+        }
+      }
+    }
+    
+    //返回网络响应
+    return response;
+  }
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">ConnectInterceptor</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">public final class ConnectInterceptor implements Interceptor {
+  public final OkHttpClient client;
+
+  public ConnectInterceptor(OkHttpClient client) {
+    this.client = client;
+  }
+
+  @Override public Response intercept(Chain chain) throws IOException {
+    Log.e("haha", "ConnectInterceptor.intercept");
+    RealInterceptorChain realChain = (RealInterceptorChain) chain;
+    Request request = realChain.request();
+    StreamAllocation streamAllocation = realChain.streamAllocation();
+
+    // We need the network to satisfy this request. Possibly for validating a conditional GET.
+    boolean doExtensiveHealthChecks = !request.method().equals("GET");
+    HttpCodec httpCodec = streamAllocation.newStream(client, doExtensiveHealthChecks);
+    
+    //这是重点
+    //获得一个连接，来自新建的或者直接从连接池复用的
+    RealConnection connection = streamAllocation.connection();
+
+    return realChain.proceed(request, streamAllocation, httpCodec, connection);
+  }
+}
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">CallServerInterceptor:<br/>
+负责对服务器发起真正的请求，然后获得服务器的响应</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">@Override public Response intercept(Chain chain) throws IOException {
+    RealInterceptorChain realChain = (RealInterceptorChain) chain;
+    HttpCodec httpCodec = realChain.httpStream();
+    StreamAllocation streamAllocation = realChain.streamAllocation();
+    RealConnection connection = (RealConnection) realChain.connection();
+    Request request = realChain.request();
+
+    long sentRequestMillis = System.currentTimeMillis();
+    httpCodec.writeRequestHeaders(request);
+
+    Response.Builder responseBuilder = null;
+      ......
+
+    httpCodec.finishRequest();
+
+    if (responseBuilder == null) {
+      responseBuilder = httpCodec.readResponseHeaders(false);
+    }
+
+    Response response = responseBuilder
+        .request(request)
+        .handshake(streamAllocation.connection().handshake())
+        .sentRequestAtMillis(sentRequestMillis)
+        .receivedResponseAtMillis(System.currentTimeMillis())
+        .build();
+
+    int code = response.code();
+    if (forWebSocket &amp;&amp; code == 101) {
+      // Connection is upgrading, but we need to ensure interceptors see a non-null response body.
+      response = response.newBuilder()
+          .body(Util.EMPTY_RESPONSE)
+          .build();
+    } else {
+      response = response.newBuilder()
+          .body(httpCodec.openResponseBody(response))
+          .build();
+    }
+
+    if ("close".equalsIgnoreCase(response.request().header("Connection"))
+        || "close".equalsIgnoreCase(response.header("Connection"))) {
+      streamAllocation.noNewStreams();
+    }
+
+    if ((code == 204 || code == 205) &amp;&amp; response.body().contentLength() &gt; 0) {
+      throw new ProtocolException(
+          "HTTP " + code + " had non-zero Content-Length: " + response.body().contentLength());
+    }
+
+    return response;
+  }
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;"><img src="OkHttp%E6%8B%A6%E6%88%AA%E5%99%A8.resources/98FCCC64-1CD3-40C0-A3BD-9FA1AF8FEA27.png" height="921" width="861"/></p>
+</div><center style="display:none !important;visibility:collapse !important;height:0 !important;white-space:nowrap;width:100%;overflow:hidden">%60%60%60%0Aclient.newCall(request).enqueue(new%20Callback()%7B...%7D)%0A%60%60%60%0A%E4%B8%80%E4%B8%AA%E7%AE%80%E5%8D%95%E7%9A%84%E4%B8%80%E9%83%A8%E8%AF%B7%E6%B1%82%0A%0A%60%60%60%0A%40Override%20%0Apublic%20Call%20newCall(Request%20request)%20%7B%0A%20%20%20%20return%20new%20RealCall(this%2C%20request%2C%20false%20%2F*%20for%20web%20socket%20*%2F)%3B%0A%20%20%7D%0A%60%60%60%0AnewCall%E5%B0%B1%E6%98%AF%E5%88%9B%E5%BB%BA%E4%BA%86%E4%B8%80%E4%B8%AARealCall%0A%0A%60%60%60%0A%40Override%20%0Apublic%20void%20enqueue(Callback%20responseCallback)%20%7B%0A%20%20%20%20synchronized%20(this)%20%7B%0A%20%20%20%20%20%20if%20(executed)%20throw%20new%20IllegalStateException(%22Already%20Executed%22)%3B%0A%20%20%20%20%20%20executed%20%3D%20true%3B%0A%20%20%20%20%7D%0A%20%20%20%20captureCallStackTrace()%3B%0A%20%20%20%20client.dispatcher().enqueue(new%20AsyncCall(responseCallback))%3B%0A%20%20%7D%0A%60%60%60%0A%E6%9C%80%E7%BB%88%E8%B0%83%E7%94%A8dispatcher%E5%86%85%E9%83%A8%E7%9A%84enqueue%EF%BC%8C%E5%B0%86%E8%AF%B7%E6%B1%82%E5%8A%A0%E5%85%A5%E5%88%B0%E4%BB%BB%E5%8A%A1%E9%98%9F%E5%88%97%E4%B8%AD%EF%BC%8C%E5%B9%B6%E4%B8%94%E5%B0%86RealCall%E8%BD%AC%E6%8D%A2%E4%B8%BAAsyncCall%0A%60%60%60%0A%40Override%20%0Aprotected%20void%20execute()%20%7B%0A%20%20%20%20%20%20boolean%20signalledCallback%20%3D%20false%3B%0A%20%20%20%20%20%20try%20%7B%0A%20%20%20%20%20%20%20%20%2F%2F%E9%80%9A%E8%BF%87%E6%8B%A6%E6%88%AA%E5%99%A8%E9%93%BE%E8%AE%BF%E9%97%AE%E4%BA%86%E5%90%84%E4%B8%AA%E6%8B%A6%E6%88%AA%E5%99%A8%EF%BC%8C%E6%89%A7%E8%A1%8C%E4%BA%86%E7%9B%B8%E5%85%B3%E9%80%BB%E8%BE%91%EF%BC%8C%E5%B9%B6%E4%B8%94%E4%BB%8E%E7%BD%91%E7%BB%9C%E4%B8%AD%E8%8E%B7%E5%BE%97%E4%BA%86%E8%AF%B7%E6%B1%82%E5%93%8D%E5%BA%94%0A%20%20%20%20%20%20%20%20Response%20response%20%3D%20getResponseWithInterceptorChain()%3B%0A%20%20%20%20%20%20%20%20if%20(retryAndFollowUpInterceptor.isCanceled())%20%7B%0A%20%20%20%20%20%20%20%20%20%20signalledCallback%20%3D%20true%3B%0A%20%20%20%20%20%20%20%20%20%20responseCallback.onFailure(RealCall.this%2C%20new%20IOException(%22Canceled%22))%3B%0A%20%20%20%20%20%20%20%20%7D%20else%20%7B%0A%20%20%20%20%20%20%20%20%20%20signalledCallback%20%3D%20true%3B%0A%20%20%20%20%20%20%20%20%20%20responseCallback.onResponse(RealCall.this%2C%20response)%3B%0A%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%7D%20catch%20(IOException%20e)%20%7B%0A%20%20%20%20%20%20%20%20if%20(signalledCallback)%20%7B%0A%20%20%20%20%20%20%20%20%20%20%2F%2F%20Do%20not%20signal%20the%20callback%20twice!%0A%20%20%20%20%20%20%20%20%20%20Platform.get().log(INFO%2C%20%22Callback%20failure%20for%20%22%20%2B%20toLoggableString()%2C%20e)%3B%0A%20%20%20%20%20%20%20%20%7D%20else%20%7B%0A%20%20%20%20%20%20%20%20%20%20responseCallback.onFailure(RealCall.this%2C%20e)%3B%0A%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%7D%20finally%20%7B%0A%20%20%20%20%20%20%20%20%2F%2F%E6%9C%80%E5%90%8E%E5%B0%86%E8%AF%B7%E6%B1%82%E7%A7%BB%E9%99%A4%E4%BB%BB%E5%8A%A1%E9%98%9F%E5%88%97%0A%20%20%20%20%20%20%20%20client.dispatcher().finished(this)%3B%0A%20%20%20%20%20%20%7D%0A%20%20%20%20%7D%0A%20%20%7D%0A%60%60%60%0A%E6%9E%84%E5%BB%BA%E6%8B%A6%E6%88%AA%E5%99%A8%E9%93%BE%E6%BA%90%E7%A0%81%0A%60%60%60%0AResponse%20getResponseWithInterceptorChain()%20throws%20IOException%20%7B%0A%20%20%20%20%2F%2F%20Build%20a%20full%20stack%20of%20interceptors.%0A%20%20%20%20List%3CInterceptor%3E%20interceptors%20%3D%20new%20ArrayList%3C%3E()%3B%0A%20%20%20%20%2F%2F%E7%94%A8%E6%88%B7%E8%87%AA%E5%AE%9A%E4%B9%89%E7%9A%84%E6%8B%A6%E6%88%AA%E5%99%A8%0A%20%20%20%20interceptors.addAll(client.interceptors())%3B%0A%20%20%20%20%2F%2F%E7%BD%91%E7%BB%9C%E9%87%8D%E8%AF%95%E6%8B%A6%E6%88%AA%E5%99%A8%0A%20%20%20%20interceptors.add(retryAndFollowUpInterceptor)%3B%0A%20%20%20%20%2F%2F%E5%8A%A0%E5%85%A5%E8%AF%B7%E6%B1%82%E5%A4%B4%E5%90%84%E4%B8%AA%E5%8F%82%E6%95%B0%E6%8B%A6%E6%88%AA%E5%99%A8%0A%20%20%20%20interceptors.add(new%20BridgeInterceptor(client.cookieJar()))%3B%0A%20%20%20%20%2F%2F%E7%BC%93%E5%AD%98%E6%8B%A6%E6%88%AA%E5%99%A8%EF%BC%8C%E5%A4%84%E7%90%86%E7%BC%93%E5%AD%98%0A%20%20%20%20interceptors.add(new%20CacheInterceptor(client.internalCache()))%3B%0A%20%20%20%20%2F%2F%E8%BF%9E%E6%8E%A5%E6%8B%A6%E6%88%AA%E5%99%A8%EF%BC%8C%E8%8E%B7%E5%BE%97%E8%BF%9E%E6%8E%A5(real_connection)%0A%20%20%20%20interceptors.add(new%20ConnectInterceptor(client))%3B%0A%20%20%20%20if%20(!forWebSocket)%20%7B%0A%20%20%20%20%20%20interceptors.addAll(client.networkInterceptors())%3B%0A%20%20%20%20%7D%0A%20%20%20%20%2F%2F%E6%9C%8D%E5%8A%A1%E5%99%A8%E8%AF%B7%E6%B1%82%E9%93%BE%EF%BC%8C%E7%94%A8%E6%88%B7%E5%8F%91%E8%B5%B7%E7%9C%9F%E6%AD%A3%E7%9A%84%E7%BD%91%E7%BB%9C%E8%AF%B7%E6%B1%82%0A%20%20%20%20interceptors.add(new%20CallServerInterceptor(forWebSocket))%3B%0A%20%20%20%20%0A%20%20%20%20%2F%2F%E5%AE%9E%E4%BE%8B%E5%8C%96%E4%B8%80%E4%B8%AA%E6%8B%A6%E6%88%AA%E5%99%A8%E9%93%BE%EF%BC%8C%E5%B9%B6%E4%B8%94%E6%89%A7%E8%A1%8Cproceed()%E6%96%B9%E6%B3%95%0A%20%20%20%20Interceptor.Chain%20chain%20%3D%20new%20RealInterceptorChain(%0A%20%20%20%20%20%20%20%20interceptors%2C%20null%2C%20null%2C%20null%2C%200%2C%20originalRequest)%3B%0A%20%20%20%20return%20chain.proceed(originalRequest)%3B%0A%20%20%7D%0A%60%60%60%0Aproceed()%E6%96%B9%E6%B3%95%0A%60%60%60%0A%23RealInterceptorChain%23class%EF%BC%9A%0A%0A%40Override%20%0Apublic%20Response%20proceed(Request%20request)%20throws%20IOException%20%7B%0A%20%20%20%20return%20proceed(request%2C%20streamAllocation%2C%20httpCodec%2C%20connection)%3B%0A%20%20%7D%0A%0A%20%20public%20Response%20proceed(Request%20request%2C%20StreamAllocation%20streamAllocation%2C%20HttpCodec%20httpCodec%2C%0A%20%20%20%20%20%20RealConnection%20connection)%20throws%20IOException%20%7B%0A%0A%20%20%20%20......%0A%20%20%20%20%2F%2F%20Call%20the%20next%20interceptor%20in%20the%20chain.%0A%20%20%20%20%2F%2F%E6%96%B0%E5%AE%9E%E4%BE%8B%E5%8C%96(index%2B1)%E4%B8%8B%E4%B8%80%E4%B8%AA%E6%8B%A6%E6%88%AA%E5%99%A8%E9%93%BE%E5%AF%B9%E8%B1%A1%0A%20%20%20%20RealInterceptorChain%20next%20%3D%20new%20RealInterceptorChain(%0A%20%20%20%20%20%20%20%20interceptors%2C%20streamAllocation%2C%20httpCodec%2C%20connection%2C%20index%20%2B%201%2C%20request)%3B%0A%20%20%20%20%2F%2F%E8%8E%B7%E5%8F%96%E5%BD%93%E5%89%8D%E6%8B%A6%E6%88%AA%E5%99%A8%E5%AF%B9%E8%B1%A1%0A%20%20%20%20Interceptor%20interceptor%20%3D%20interceptors.get(index)%3B%0A%20%20%20%20%2F%2F%E6%89%A7%E8%A1%8C%E5%BD%93%E5%89%8D%E6%8B%A6%E6%88%AA%E5%99%A8%E7%9A%84%E6%8B%A6%E6%88%AA%E9%80%BB%E8%BE%91%EF%BC%8C%E5%B9%B6%E4%B8%94%E5%B0%86%E4%B8%8B%E4%B8%80%E4%B8%AA%E6%8B%A6%E6%88%AA%E5%99%A8%E9%93%BE%E4%BC%A0%E5%85%A5%0A%20%20%20%20Response%20response%20%3D%20interceptor.intercept(next)%3B%0A%20%20%20%20%0A%20%20%20%20......%20%0A%0A%20%20%20%20return%20response%3B%0A%20%20%7D%0A%60%60%60%0Ainterceptor.intercept()%3A%0A%60%60%60%0Apublic%20final%20class%20RetryAndFollowUpInterceptor%20implements%20Interceptor%20%7B%0A%20%20%20%20%40Override%20public%20Response%20intercept(Chain%20chain)%20throws%20IOException%20%7B%0A%20%20%20%20Request%20request%20%3D%20chain.request()%3B%0A%0A%20%20%20%20streamAllocation%20%3D%20new%20StreamAllocation(%0A%20%20%20%20%20%20%20%20client.connectionPool()%2C%20createAddress(request.url())%2C%20callStackTrace)%3B%0A%0A%20%20%20%20int%20followUpCount%20%3D%200%3B%0A%20%20%20%20Response%20priorResponse%20%3D%20null%3B%0A%20%20%20%20%2F%2F%E7%94%A8%E4%BA%8E%E7%BD%91%E7%BB%9C%E8%AF%B7%E6%B1%82%E5%A4%B1%E8%B4%A5%E9%87%8D%E8%AF%95%0A%20%20%20%20while%20(true)%20%7B%0A%20%20%20%20%20%20if%20(canceled)%20%7B%0A%20%20%20%20%20%20%20%20streamAllocation.release()%3B%0A%20%20%20%20%20%20%20%20throw%20new%20IOException(%22Canceled%22)%3B%0A%20%20%20%20%20%20%7D%0A%0A%20%20%20%20%20%20Response%20response%20%3D%20null%3B%0A%20%20%20%20%20%20boolean%20releaseConnection%20%3D%20true%3B%0A%20%20%20%20%20%20try%20%7B%0A%20%20%20%20%20%20%20%2F%2F%E6%89%A7%E8%A1%8C%E4%B8%8B%E4%B8%80%E4%B8%AA%E6%8B%A6%E6%88%AA%E5%99%A8%E9%93%BE%E7%9A%84proceed%E6%96%B9%E6%B3%95%0A%20%20%20%20%20%20%20%20response%20%3D%20((RealInterceptorChain)%20chain).proceed(request%2C%20streamAllocation%2C%20null%2C%20null)%3B%0A%20%20%20%20%20%20%20%20releaseConnection%20%3D%20false%3B%0A%20%20%20%20%20%20%7D%20catch%20(RouteException%20e)%20%7B%0A%20%20%20%20%20%20%20%20%2F%2F%20The%20attempt%20to%20connect%20via%20a%20route%20failed.%20The%20request%20will%20not%20have%20been%20sent.%0A%20%20%20%20%20%20%20%20if%20(!recover(e.getLastConnectException()%2C%20false%2C%20request))%20%7B%0A%20%20%20%20%20%20%20%20%20%20throw%20e.getLastConnectException()%3B%0A%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20releaseConnection%20%3D%20false%3B%0A%20%20%20%20%20%20%20%20continue%3B%0A%20%20%20%20%20%20%7D%20catch%20(IOException%20e)%20%7B%0A%20%20%20%20%20%20%20%20%2F%2F%20An%20attempt%20to%20communicate%20with%20a%20server%20failed.%20The%20request%20may%20have%20been%20sent.%0A%20%20%20%20%20%20%20%20boolean%20requestSendStarted%20%3D%20!(e%20instanceof%20ConnectionShutdownException)%3B%0A%20%20%20%20%20%20%20%20if%20(!recover(e%2C%20requestSendStarted%2C%20request))%20throw%20e%3B%0A%20%20%20%20%20%20%20%20releaseConnection%20%3D%20false%3B%0A%20%20%20%20%20%20%20%20continue%3B%0A%20%20%20%20%20%20%7D%20finally%20%7B%0A%20%20%20%20%20%20%20%20%2F%2F%20We're%20throwing%20an%20unchecked%20exception.%20Release%20any%20resources.%0A%20%20%20%20%20%20%20%20if%20(releaseConnection)%20%7B%0A%20%20%20%20%20%20%20%20%20%20streamAllocation.streamFailed(null)%3B%0A%20%20%20%20%20%20%20%20%20%20streamAllocation.release()%3B%0A%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%7D%0A%0A%20%20%20%20%20%20%2F%2F%20Attach%20the%20prior%20response%20if%20it%20exists.%20Such%20responses%20never%20have%20a%20body.%0A%20%20%20%20%20%20......%0A%0A%20%20%20%20%20%20Request%20followUp%20%3D%20followUpRequest(response)%3B%0A%0A%0A%20%20%20%20%20%20closeQuietly(response.body())%3B%0A%20%20%20%20%20%20...%0A%20%20%20%20%7D%0A%20%20%7D%0A%7D%0A%60%60%60%0A%E5%8F%AF%E4%BB%A5%E5%BE%97%E5%87%BA%E7%BB%93%E8%AE%BA%EF%BC%9A%0A%E4%B8%80%E4%B8%AA%E6%8B%A6%E6%88%AA%E5%99%A8%E6%89%80%E6%89%A7%E8%A1%8C%E7%9A%84%E6%8B%A6%E6%88%AA%E6%93%8D%E4%BD%9C%EF%BC%9A%0A*%20%E5%9C%A8%E5%8F%91%E8%B5%B7%E8%AF%B7%E6%B1%82%E5%89%8D%E5%AF%B9request%E8%BF%9B%E8%A1%8C%E5%A4%84%E7%90%86%0A*%20%E5%9C%A8%E4%B8%80%E4%B8%AA%E6%8B%A6%E6%88%AA%E5%99%A8%E9%93%BE%E4%B8%AD%E5%AE%9E%E4%BE%8B%E5%8C%96%E4%B8%8B%E4%B8%80%E4%B8%AA%E6%8B%A6%E6%88%AA%E5%99%A8%E9%93%BE%20%23proceed()%0A*%20%E5%9C%A8%E6%8B%A6%E6%88%AA%E5%99%A8%E9%93%BE%E4%B8%AD%E6%89%A7%E8%A1%8C%E7%9A%84%E6%8B%A6%E6%88%AA%E5%99%A8%E6%96%B9%E6%B3%95%20%23proceed()-%3Eintercept()%0A*%20%E5%9C%A8%E6%8B%A6%E6%88%AA%E5%99%A8%E4%B8%AD%E6%89%A7%E8%A1%8C%E7%9B%B8%E5%85%B3%E7%9A%84%E6%8B%A6%E6%88%AA%E9%80%BB%E8%BE%91%EF%BC%8C%E7%84%B6%E5%90%8E%E5%86%8D%E4%BD%BF%E7%94%A8%E4%B8%8B%E4%B8%80%E4%B8%AA%E6%8B%A6%E6%88%AA%E5%99%A8%E7%9A%84proceed()%E6%96%B9%E6%B3%95%EF%BC%8C%E8%8E%B7%E5%BE%97%E7%BD%91%E7%BB%9C%E8%AF%B7%E6%B1%82%E7%9A%84response%EF%BC%8C%E5%B9%B6%E4%B8%94%E6%89%A7%E8%A1%8C%E4%B8%8B%E4%B8%80%E6%8B%A6%E6%88%AA%E5%99%A8%E7%9A%84%E9%80%BB%E8%BE%91%0A%0ARealInterceptorChain%0A*%20%E7%BD%91%E7%BB%9C%E8%AF%B7%E6%B1%82%E5%A4%B1%E8%B4%A5%E6%97%B6%E9%87%8D%E8%AF%95%0A*%20%E7%BD%91%E7%BB%9C%E9%87%8D%E5%AE%9A%E5%90%91%E6%97%B6%E5%8F%91%E8%B5%B7%E6%96%B0%E7%9A%84%E8%AF%B7%E6%B1%82%EF%BC%8C%E5%B9%B6%E4%B8%94%E5%9C%A8%E5%85%81%E8%AE%B8%E4%B8%8B%E5%A4%8D%E7%94%A8%E5%90%8C%E4%B8%80%E8%BF%9E%E6%8E%A5%0A%0A%60%60%60%0Apublic%20final%20class%20BridgeInterceptor%20implements%20Interceptor%20%7B%0A%20%20private%20final%20CookieJar%20cookieJar%3B%0A%0A%20%20public%20BridgeInterceptor(CookieJar%20cookieJar)%20%7B%0A%20%20%20%20this.cookieJar%20%3D%20cookieJar%3B%0A%20%20%7D%0A%0A%20%20%40Override%20public%20Response%20intercept(Chain%20chain)%20throws%20IOException%20%7B%0A%20%20%20%20Log.e(%22haha%22%2C%20%22BridgeInterceptor.intercept%22)%3B%0A%20%20%20%20Request%20userRequest%20%3D%20chain.request()%3B%0A%20%20%20%20Request.Builder%20requestBuilder%20%3D%20userRequest.newBuilder()%3B%0A%0A%20%20%20%20RequestBody%20body%20%3D%20userRequest.body()%3B%0A%20%20%20%20if%20(body%20!%3D%20null)%20%7B%0A%20%20%20%20%20%20MediaType%20contentType%20%3D%20body.contentType()%3B%0A%20%20%20%20%20%20if%20(contentType%20!%3D%20null)%20%7B%0A%20%20%20%20%20%20%20%20requestBuilder.header(%22Content-Type%22%2C%20contentType.toString())%3B%0A%20%20%20%20%20%20%7D%0A%0A%20%20%20%20%20%20long%20contentLength%20%3D%20body.contentLength()%3B%0A%20%20%20%20%20%20if%20(contentLength%20!%3D%20-1)%20%7B%0A%20%20%20%20%20%20%20%20requestBuilder.header(%22Content-Length%22%2C%20Long.toString(contentLength))%3B%0A%20%20%20%20%20%20%20%20requestBuilder.removeHeader(%22Transfer-Encoding%22)%3B%0A%20%20%20%20%20%20%7D%20else%20%7B%0A%20%20%20%20%20%20%20%20requestBuilder.header(%22Transfer-Encoding%22%2C%20%22chunked%22)%3B%0A%20%20%20%20%20%20%20%20requestBuilder.removeHeader(%22Content-Length%22)%3B%0A%20%20%20%20%20%20%7D%0A%20%20%20%20%7D%0A%0A%20%20%20%20if%20(userRequest.header(%22Host%22)%20%3D%3D%20null)%20%7B%0A%20%20%20%20%20%20requestBuilder.header(%22Host%22%2C%20hostHeader(userRequest.url()%2C%20false))%3B%0A%20%20%20%20%7D%0A%0A%20%20%20%20if%20(userRequest.header(%22Connection%22)%20%3D%3D%20null)%20%7B%0A%20%20%20%20%20%20requestBuilder.header(%22Connection%22%2C%20%22Keep-Alive%22)%3B%0A%20%20%20%20%7D%0A%0A%20%20%20%20%2F%2F%20If%20we%20add%20an%20%22Accept-Encoding%3A%20gzip%22%20header%20field%20we're%20responsible%20for%20also%20decompressing%0A%20%20%20%20%2F%2F%20the%20transfer%20stream.%0A%20%20%20%20boolean%20transparentGzip%20%3D%20false%3B%0A%20%20%20%20if%20(userRequest.header(%22Accept-Encoding%22)%20%3D%3D%20null%20%26%26%20userRequest.header(%22Range%22)%20%3D%3D%20null)%20%7B%0A%20%20%20%20%20%20transparentGzip%20%3D%20true%3B%0A%20%20%20%20%20%20requestBuilder.header(%22Accept-Encoding%22%2C%20%22gzip%22)%3B%0A%20%20%20%20%7D%0A%0A%20%20%20%20List%3CCookie%3E%20cookies%20%3D%20cookieJar.loadForRequest(userRequest.url())%3B%0A%20%20%20%20if%20(!cookies.isEmpty())%20%7B%0A%20%20%20%20%20%20requestBuilder.header(%22Cookie%22%2C%20cookieHeader(cookies))%3B%0A%20%20%20%20%7D%0A%0A%20%20%20%20if%20(userRequest.header(%22User-Agent%22)%20%3D%3D%20null)%20%7B%0A%20%20%20%20%20%20requestBuilder.header(%22User-Agent%22%2C%20Version.userAgent())%3B%0A%20%20%20%20%7D%0A%0A%20%20%20%20Response%20networkResponse%20%3D%20chain.proceed(requestBuilder.build())%3B%0A%0A%20%20%20%20HttpHeaders.receiveHeaders(cookieJar%2C%20userRequest.url()%2C%20networkResponse.headers())%3B%0A%0A%20%20%20%20Response.Builder%20responseBuilder%20%3D%20networkResponse.newBuilder()%0A%20%20%20%20%20%20%20%20.request(userRequest)%3B%0A%0A%20%20%20%20if%20(transparentGzip%0A%20%20%20%20%20%20%20%20%26%26%20%22gzip%22.equalsIgnoreCase(networkResponse.header(%22Content-Encoding%22))%0A%20%20%20%20%20%20%20%20%26%26%20HttpHeaders.hasBody(networkResponse))%20%7B%0A%20%20%20%20%20%20GzipSource%20responseBody%20%3D%20new%20GzipSource(networkResponse.body().source())%3B%0A%20%20%20%20%20%20Headers%20strippedHeaders%20%3D%20networkResponse.headers().newBuilder()%0A%20%20%20%20%20%20%20%20%20%20.removeAll(%22Content-Encoding%22)%0A%20%20%20%20%20%20%20%20%20%20.removeAll(%22Content-Length%22)%0A%20%20%20%20%20%20%20%20%20%20.build()%3B%0A%20%20%20%20%20%20responseBuilder.headers(strippedHeaders)%3B%0A%20%20%20%20%20%20responseBuilder.body(new%20RealResponseBody(strippedHeaders%2C%20Okio.buffer(responseBody)))%3B%0A%20%20%20%20%7D%0A%0A%20%20%20%20return%20responseBuilder.build()%3B%0A%20%20%7D%0A%7D%0A%60%60%60%0ABridgeInterceptor%0A*%20%E9%85%8D%E7%BD%AErequest%E7%9A%84%E8%AF%B7%E6%B1%82%E5%A4%B4%E5%8F%82%E6%95%B0%EF%BC%88Accept-Encoding%EF%BC%9Agzip%EF%BC%9A%E4%BD%BF%E7%94%A8gzip%E5%8E%8B%E7%BC%A9%EF%BC%8CContent-Length%EF%BC%9A%EF%BC%9F%EF%BC%9A%E5%86%85%E5%AE%B9%E9%95%BF%E5%BA%A6%E3%80%82%E3%80%82%E3%80%82%EF%BC%89%0A%0A%E3%80%80CacheInterceptor%0A%60%60%60%0A%40Override%20public%20Response%20intercept(Chain%20chain)%20throws%20IOException%20%7B%0A%20%20%20%20%2F%2F%E6%9F%A5%E7%9C%8B%E6%98%AF%E5%90%A6%E6%9C%89%E5%8F%AF%E7%94%A8%E7%9A%84%E7%BC%93%E5%AD%98%0A%20%20%20%20Response%20cacheCandidate%20%3D%20cache%20!%3D%20null%0A%20%20%20%20%20%20%20%20%3F%20cache.get(chain.request())%0A%20%20%20%20%20%20%20%20%3A%20null%3B%0A%0A%20%20%20%20long%20now%20%3D%20System.currentTimeMillis()%3B%0A%20%20%20%20%0A%20%20%20%20%2F%2F%E8%8E%B7%E5%8F%96%E5%BD%93%E5%89%8D%E7%9A%84%E7%BC%93%E5%AD%98%E7%AD%96%E7%95%A5%EF%BC%8C%E8%8E%B7%E5%8F%96%E7%BD%91%E7%BB%9C%E8%AF%B7%E6%B1%82%E4%BB%A5%E5%8F%8A%E7%BC%93%E5%AD%98%E7%9A%84%E5%93%8D%E5%BA%94%0A%20%20%20%20CacheStrategy%20strategy%20%3D%20new%20CacheStrategy.Factory(now%2C%20chain.request()%2C%20cacheCandidate).get()%3B%0A%20%20%20%20Request%20networkRequest%20%3D%20strategy.networkRequest%3B%0A%20%20%20%20Response%20cacheResponse%20%3D%20strategy.cacheResponse%3B%0A%0A%20%20%20%20%2F%2F%E6%9B%B4%E6%96%B0%E5%87%BB%E4%B8%AD%E7%8E%87%E4%BF%A1%E6%81%AF%0A%20%20%20%20if%20(cache%20!%3D%20null)%20%7B%0A%20%20%20%20%20%20cache.trackResponse(strategy)%3B%0A%20%20%20%20%7D%0A%0A%20%20%20%20%2F%2F%E5%A6%82%E6%9E%9C%E5%BD%93%E5%89%8D%E7%9A%84%E7%BC%93%E5%AD%98%E4%B8%8D%E5%8F%AF%E7%94%A8%EF%BC%8C%E5%85%B3%E6%8E%89%E5%AE%83%0A%20%20%20%20if%20(cacheCandidate%20!%3D%20null%20%26%26%20cacheResponse%20%3D%3D%20null)%20%7B%0A%20%20%20%20%20%20closeQuietly(cacheCandidate.body())%3B%20%2F%2F%20The%20cache%20candidate%20wasn't%20applicable.%20Close%20it.%0A%20%20%20%20%7D%0A%0A%20%20%20%20%2F%2F%20%E5%A6%82%E6%9E%9C%E7%BD%91%E7%BB%9C%E8%AF%B7%E6%B1%82%E4%B8%8D%E8%83%BD%E7%94%A8%EF%BC%8C%E5%B9%B6%E4%B8%94%E6%B2%A1%E6%9C%89%E5%8F%AF%E7%94%A8%E7%BC%93%E5%AD%98%EF%BC%8C%E7%9B%B4%E6%8E%A5%E8%BF%94%E5%9B%9E504%0A%20%20%20%20if%20(networkRequest%20%3D%3D%20null%20%26%26%20cacheResponse%20%3D%3D%20null)%20%7B%0A%20%20%20%20%20%20return%20new%20Response.Builder()%0A%20%20%20%20%20%20%20%20%20%20.request(chain.request())%0A%20%20%20%20%20%20%20%20%20%20.protocol(Protocol.HTTP_1_1)%0A%20%20%20%20%20%20%20%20%20%20.code(504)%0A%20%20%20%20%20%20%20%20%20%20.message(%22Unsatisfiable%20Request%20(only-if-cached)%22)%0A%20%20%20%20%20%20%20%20%20%20.body(Util.EMPTY_RESPONSE)%0A%20%20%20%20%20%20%20%20%20%20.sentRequestAtMillis(-1L)%0A%20%20%20%20%20%20%20%20%20%20.receivedResponseAtMillis(System.currentTimeMillis())%0A%20%20%20%20%20%20%20%20%20%20.build()%3B%0A%20%20%20%20%7D%0A%0A%20%20%20%20%2F%2F%20%E5%A6%82%E6%9E%9C%E7%BD%91%E7%BB%9C%E8%AF%B7%E6%B1%82%E4%B8%8D%E8%83%BD%E7%94%A8%EF%BC%8C%E7%9B%B4%E6%8E%A5%E8%BF%94%E5%9B%9E%E5%8F%AF%E7%94%A8%E7%BC%93%E5%AD%98%0A%20%20%20%20if%20(networkRequest%20%3D%3D%20null)%20%7B%0A%20%20%20%20%20%20return%20cacheResponse.newBuilder()%0A%20%20%20%20%20%20%20%20%20%20.cacheResponse(stripBody(cacheResponse))%0A%20%20%20%20%20%20%20%20%20%20.build()%3B%0A%20%20%20%20%7D%0A%0A%20%20%20%20%2F%2F%E4%B8%8E%E6%9C%8D%E5%8A%A1%E5%99%A8%E8%BF%9B%E8%A1%8C%E9%80%9A%E4%BF%A1%EF%BC%8C%E8%8E%B7%E5%BE%97%E6%9C%8D%E5%8A%A1%E5%99%A8%E5%9B%9E%E5%BA%94%0A%20%20%20%20Response%20networkResponse%20%3D%20null%3B%0A%20%20%20%20try%20%7B%0A%20%20%20%20%20%20networkResponse%20%3D%20chain.proceed(networkRequest)%3B%0A%20%20%20%20%7D%20finally%20%7B%0A%20%20%20%20%20%20%2F%2F%20If%20we're%20crashing%20on%20I%2FO%20or%20otherwise%2C%20don't%20leak%20the%20cache%20body.%0A%20%20%20%20%20%20if%20(networkResponse%20%3D%3D%20null%20%26%26%20cacheCandidate%20!%3D%20null)%20%7B%0A%20%20%20%20%20%20%20%20closeQuietly(cacheCandidate.body())%3B%0A%20%20%20%20%20%20%7D%0A%20%20%20%20%7D%0A%0A%20%20%20%20%2F%2F%20%E7%BC%93%E5%AD%98%E4%B8%8D%E4%B8%BA%E7%A9%BA%EF%BC%8C%E8%AF%B4%E6%98%8E%E7%9B%AE%E5%89%8D%E5%9C%A8%E5%81%9A%E6%9C%89%E6%9D%A1%E4%BB%B6%E7%9A%84%E8%AF%B7%E6%B1%82%0A%20%20%20%20if%20(cacheResponse%20!%3D%20null)%20%7B%0A%20%20%20%20%20%20%20%20%2F%2F%E6%9C%8D%E5%8A%A1%E5%99%A8%E8%AF%B4%E7%BC%93%E5%AD%98%E8%BF%98%E5%8F%AF%E4%BB%A5%E7%94%A8%EF%BC%8C%E7%9B%B4%E6%8E%A5%E5%B0%86%E7%BD%91%E7%BB%9C%E5%93%8D%E5%BA%94%E5%92%8C%E7%BC%93%E5%AD%98%E7%BB%93%E5%90%88%E8%B5%B7%E6%9D%A5%E8%BF%94%E5%9B%9E%0A%20%20%20%20%20%20if%20(networkResponse.code()%20%3D%3D%20HTTP_NOT_MODIFIED)%20%7B%0A%20%20%20%20%20%20%20%20Response%20response%20%3D%20cacheResponse.newBuilder()%0A%20%20%20%20%20%20%20%20%20%20%20%20.headers(combine(cacheResponse.headers()%2C%20networkResponse.headers()))%0A%20%20%20%20%20%20%20%20%20%20%20%20.sentRequestAtMillis(networkResponse.sentRequestAtMillis())%0A%20%20%20%20%20%20%20%20%20%20%20%20.receivedResponseAtMillis(networkResponse.receivedResponseAtMillis())%0A%20%20%20%20%20%20%20%20%20%20%20%20.cacheResponse(stripBody(cacheResponse))%0A%20%20%20%20%20%20%20%20%20%20%20%20.networkResponse(stripBody(networkResponse))%0A%20%20%20%20%20%20%20%20%20%20%20%20.build()%3B%0A%20%20%20%20%20%20%20%20networkResponse.body().close()%3B%0A%0A%20%20%20%20%20%20%20%20%2F%2F%20Update%20the%20cache%20after%20combining%20headers%20but%20before%20stripping%20the%0A%20%20%20%20%20%20%20%20%2F%2F%20Content-Encoding%20header%20(as%20performed%20by%20initContentStream()).%0A%20%20%20%20%20%20%20%20cache.trackConditionalCacheHit()%3B%0A%20%20%20%20%20%20%20%20cache.update(cacheResponse%2C%20response)%3B%0A%20%20%20%20%20%20%20%20return%20response%3B%0A%20%20%20%20%20%20%7D%20else%20%7B%0A%20%20%20%20%20%20%20%20%2F%2F%E7%BC%93%E5%AD%98%E8%BF%87%E6%9C%9F%E4%B8%8D%E8%83%BD%E7%94%A8%E4%BA%86%EF%BC%8C%E5%85%B3%E9%97%AD%E5%AE%83%0A%20%20%20%20%20%20%20%20closeQuietly(cacheResponse.body())%3B%0A%20%20%20%20%20%20%7D%0A%20%20%20%20%7D%0A%20%20%20%20%0A%20%20%20%20%2F%2F%E4%BB%A5%E4%B8%8B%E6%98%AF%E7%BC%93%E5%AD%98%E4%B8%BA%E7%A9%BA%E7%9A%84%E6%83%85%E5%86%B5%0A%20%20%20%20%2F%2F%E6%95%B4%E5%90%88%E5%93%8D%E5%BA%94%E6%95%B4%E5%90%88%0A%20%20%20%20Response%20response%20%3D%20networkResponse.newBuilder()%0A%20%20%20%20%20%20%20%20.cacheResponse(stripBody(cacheResponse))%0A%20%20%20%20%20%20%20%20.networkResponse(stripBody(networkResponse))%0A%20%20%20%20%20%20%20%20.build()%3B%0A%0A%20%20%20%20%2F%2F%E5%A6%82%E6%9E%9C%E7%BC%93%E5%AD%98%E9%9B%86%E4%B8%8D%E4%B8%BA%E7%A9%BA%0A%20%20%20%20if%20(cache%20!%3D%20null)%20%7B%0A%20%20%20%20%20%20%20%20%2F%2F%E5%8F%AF%E4%BB%A5%E7%BC%93%E5%AD%98%EF%BC%8C%E5%B0%86%E7%BD%91%E7%BB%9C%E5%93%8D%E5%BA%94%E4%BA%A4%E7%BB%99%E7%BC%93%E5%AD%98%EF%BC%8C%E7%84%B6%E5%90%8E%E8%BF%94%E5%9B%9E%E5%93%8D%E5%BA%94%0A%20%20%20%20%20%20if%20(HttpHeaders.hasBody(response)%20%26%26%20CacheStrategy.isCacheable(response%2C%20networkRequest))%20%7B%0A%20%20%20%20%20%20%20%20%2F%2F%20Offer%20this%20request%20to%20the%20cache.%0A%20%20%20%20%20%20%20%20CacheRequest%20cacheRequest%20%3D%20cache.put(response)%3B%0A%20%20%20%20%20%20%20%20return%20cacheWritingResponse(cacheRequest%2C%20response)%3B%0A%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%0A%20%20%20%20%20%20%2F%2F%E4%B8%8D%E7%BC%93%E5%AD%98%EF%BC%8C%E7%9B%B4%E6%8E%A5%E5%8E%BB%E6%8E%89%E7%BC%93%E5%AD%98%0A%20%20%20%20%20%20if%20(HttpMethod.invalidatesCache(networkRequest.method()))%20%7B%0A%20%20%20%20%20%20%20%20try%20%7B%0A%20%20%20%20%20%20%20%20%20%20cache.remove(networkRequest)%3B%0A%20%20%20%20%20%20%20%20%7D%20catch%20(IOException%20ignored)%20%7B%0A%20%20%20%20%20%20%20%20%20%20%2F%2F%20The%20cache%20cannot%20be%20written.%0A%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%7D%0A%20%20%20%20%7D%0A%20%20%20%20%0A%20%20%20%20%2F%2F%E8%BF%94%E5%9B%9E%E7%BD%91%E7%BB%9C%E5%93%8D%E5%BA%94%0A%20%20%20%20return%20response%3B%0A%20%20%7D%0A%60%60%60%0A%0AConnectInterceptor%0A%60%60%60%0Apublic%20final%20class%20ConnectInterceptor%20implements%20Interceptor%20%7B%0A%20%20public%20final%20OkHttpClient%20client%3B%0A%0A%20%20public%20ConnectInterceptor(OkHttpClient%20client)%20%7B%0A%20%20%20%20this.client%20%3D%20client%3B%0A%20%20%7D%0A%0A%20%20%40Override%20public%20Response%20intercept(Chain%20chain)%20throws%20IOException%20%7B%0A%20%20%20%20Log.e(%22haha%22%2C%20%22ConnectInterceptor.intercept%22)%3B%0A%20%20%20%20RealInterceptorChain%20realChain%20%3D%20(RealInterceptorChain)%20chain%3B%0A%20%20%20%20Request%20request%20%3D%20realChain.request()%3B%0A%20%20%20%20StreamAllocation%20streamAllocation%20%3D%20realChain.streamAllocation()%3B%0A%0A%20%20%20%20%2F%2F%20We%20need%20the%20network%20to%20satisfy%20this%20request.%20Possibly%20for%20validating%20a%20conditional%20GET.%0A%20%20%20%20boolean%20doExtensiveHealthChecks%20%3D%20!request.method().equals(%22GET%22)%3B%0A%20%20%20%20HttpCodec%20httpCodec%20%3D%20streamAllocation.newStream(client%2C%20doExtensiveHealthChecks)%3B%0A%20%20%20%20%0A%20%20%20%20%2F%2F%E8%BF%99%E6%98%AF%E9%87%8D%E7%82%B9%0A%20%20%20%20%2F%2F%E8%8E%B7%E5%BE%97%E4%B8%80%E4%B8%AA%E8%BF%9E%E6%8E%A5%EF%BC%8C%E6%9D%A5%E8%87%AA%E6%96%B0%E5%BB%BA%E7%9A%84%E6%88%96%E8%80%85%E7%9B%B4%E6%8E%A5%E4%BB%8E%E8%BF%9E%E6%8E%A5%E6%B1%A0%E5%A4%8D%E7%94%A8%E7%9A%84%0A%20%20%20%20RealConnection%20connection%20%3D%20streamAllocation.connection()%3B%0A%0A%20%20%20%20return%20realChain.proceed(request%2C%20streamAllocation%2C%20httpCodec%2C%20connection)%3B%0A%20%20%7D%0A%7D%0A%60%60%60%0A%0ACallServerInterceptor%3A%0A%E8%B4%9F%E8%B4%A3%E5%AF%B9%E6%9C%8D%E5%8A%A1%E5%99%A8%E5%8F%91%E8%B5%B7%E7%9C%9F%E6%AD%A3%E7%9A%84%E8%AF%B7%E6%B1%82%EF%BC%8C%E7%84%B6%E5%90%8E%E8%8E%B7%E5%BE%97%E6%9C%8D%E5%8A%A1%E5%99%A8%E7%9A%84%E5%93%8D%E5%BA%94%0A%60%60%60%0A%40Override%20public%20Response%20intercept(Chain%20chain)%20throws%20IOException%20%7B%0A%20%20%20%20RealInterceptorChain%20realChain%20%3D%20(RealInterceptorChain)%20chain%3B%0A%20%20%20%20HttpCodec%20httpCodec%20%3D%20realChain.httpStream()%3B%0A%20%20%20%20StreamAllocation%20streamAllocation%20%3D%20realChain.streamAllocation()%3B%0A%20%20%20%20RealConnection%20connection%20%3D%20(RealConnection)%20realChain.connection()%3B%0A%20%20%20%20Request%20request%20%3D%20realChain.request()%3B%0A%0A%20%20%20%20long%20sentRequestMillis%20%3D%20System.currentTimeMillis()%3B%0A%20%20%20%20httpCodec.writeRequestHeaders(request)%3B%0A%0A%20%20%20%20Response.Builder%20responseBuilder%20%3D%20null%3B%0A%20%20%20%20%20%20......%0A%0A%20%20%20%20httpCodec.finishRequest()%3B%0A%0A%20%20%20%20if%20(responseBuilder%20%3D%3D%20null)%20%7B%0A%20%20%20%20%20%20responseBuilder%20%3D%20httpCodec.readResponseHeaders(false)%3B%0A%20%20%20%20%7D%0A%0A%20%20%20%20Response%20response%20%3D%20responseBuilder%0A%20%20%20%20%20%20%20%20.request(request)%0A%20%20%20%20%20%20%20%20.handshake(streamAllocation.connection().handshake())%0A%20%20%20%20%20%20%20%20.sentRequestAtMillis(sentRequestMillis)%0A%20%20%20%20%20%20%20%20.receivedResponseAtMillis(System.currentTimeMillis())%0A%20%20%20%20%20%20%20%20.build()%3B%0A%0A%20%20%20%20int%20code%20%3D%20response.code()%3B%0A%20%20%20%20if%20(forWebSocket%20%26%26%20code%20%3D%3D%20101)%20%7B%0A%20%20%20%20%20%20%2F%2F%20Connection%20is%20upgrading%2C%20but%20we%20need%20to%20ensure%20interceptors%20see%20a%20non-null%20response%20body.%0A%20%20%20%20%20%20response%20%3D%20response.newBuilder()%0A%20%20%20%20%20%20%20%20%20%20.body(Util.EMPTY_RESPONSE)%0A%20%20%20%20%20%20%20%20%20%20.build()%3B%0A%20%20%20%20%7D%20else%20%7B%0A%20%20%20%20%20%20response%20%3D%20response.newBuilder()%0A%20%20%20%20%20%20%20%20%20%20.body(httpCodec.openResponseBody(response))%0A%20%20%20%20%20%20%20%20%20%20.build()%3B%0A%20%20%20%20%7D%0A%0A%20%20%20%20if%20(%22close%22.equalsIgnoreCase(response.request().header(%22Connection%22))%0A%20%20%20%20%20%20%20%20%7C%7C%20%22close%22.equalsIgnoreCase(response.header(%22Connection%22)))%20%7B%0A%20%20%20%20%20%20streamAllocation.noNewStreams()%3B%0A%20%20%20%20%7D%0A%0A%20%20%20%20if%20((code%20%3D%3D%20204%20%7C%7C%20code%20%3D%3D%20205)%20%26%26%20response.body().contentLength()%20%3E%200)%20%7B%0A%20%20%20%20%20%20throw%20new%20ProtocolException(%0A%20%20%20%20%20%20%20%20%20%20%22HTTP%20%22%20%2B%20code%20%2B%20%22%20had%20non-zero%20Content-Length%3A%20%22%20%2B%20response.body().contentLength())%3B%0A%20%20%20%20%7D%0A%0A%20%20%20%20return%20response%3B%0A%20%20%7D%0A%60%60%60%0A%0A!%5Be67029972070a7dd84206023b179dbd1.png%5D(evernotecid%3A%2F%2FF51182F9-C91A-4EC7-A031-83FAD430FC37%2Fappyinxiangcom%2F25653467%2FENNote%2Fp49%3Fhash%3De67029972070a7dd84206023b179dbd1)</center></body></html>

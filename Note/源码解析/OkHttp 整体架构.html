@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/><meta name="exporter-version" content="Evernote Mac 9.2.0 (458672)"/><meta name="author" content="林"/><meta name="created" content="2019-10-15 12:33:17 +0000"/><meta name="source" content="desktop.mac"/><meta name="updated" content="2019-10-15 13:12:20 +0000"/><meta name="content-class" content="yinxiang.markdown"/><title>OkHttp 整体架构</title></head><body><div style="font-size: 14px; margin: 0; padding: 0; width: 100%;"><p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">OkHttp 的优点</p>
+<ul style="line-height: 160%; box-sizing: content-box; display: block; list-style-type: disc; padding-left: 30px; margin: 6px 0 10px; color: #333;">
+<li style="line-height: 160%; box-sizing: content-box; position: relative;">支持HTTPS,WebSocket</li>
+<li style="line-height: 160%; box-sizing: content-box; position: relative;">内部维护任务队列线程池，友好支持并发访问</li>
+<li style="line-height: 160%; box-sizing: content-box; position: relative;">内部维护连接池，支持多路复用</li>
+<li style="line-height: 160%; box-sizing: content-box; position: relative;">连接支持最佳路由</li>
+<li style="line-height: 160%; box-sizing: content-box; position: relative;">提供拦截器链，支持response与request的分层处理</li>
+</ul>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">同步调用</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">@Override public Response execute() throws IOException {
+    //锁标位
+  synchronized (this) {
+    if (executed) throw new IllegalStateException("Already Executed");
+    executed = true;
+  }
+  try {
+    //调用同步线程的executed方法，将请求加入连接队列
+    client.dispatcher().executed(this);
+    //执行http请求
+    Response result = getResponseWithInterceptorChain(false);
+    if (result == null) throw new IOException("Canceled");
+    return result;
+  } finally {
+    //无论是否成功连接，将请求移除连接队列
+    client.dispatcher().finished(this);
+  }
+}
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">异步调用</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">void enqueue(Callback responseCallback, boolean forWebSocket) {
+  synchronized (this) {
+    if (executed) throw new IllegalStateException("Already Executed");
+    executed = true;
+  }
+   //调用enque方法，传入一个AsyncCall对象
+   //它是一个call的实现类，继承NameRunnable接口，所以每一个call就是一个线程
+  client.dispatcher().enqueue(new AsyncCall(responseCallback, forWebSocket));
+}
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;"><img src="OkHttp%20%E6%95%B4%E4%BD%93%E6%9E%B6%E6%9E%84.resources/f6e2ac304ee22891eca4ad1218602044.png" height="1091" width="721"/></p>
+<h4 style="line-height: 160%; box-sizing: content-box; font-size: 20px; color: #333;">interface</h4>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">接口层，负责接受网络访问的请求<br/>
+Call:实质就是请求，实现是RealCall,内部维护一个AsyncCall,并且实现nameRannable接口<br/>
+OkHttpClient:okhttp的客户端，内部维护了任务队列，连接池，cache，intercaptor。所以通常使用单例模式使用它。<br/>
+dispatcher：内部维护了任素队列线程池</p>
+<h4 style="line-height: 160%; box-sizing: content-box; font-size: 20px; color: #333;">protocal</h4>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">协议层，负责处理协议逻辑<br/>
+支持http1.x，http2，webSocket，TLS/SSL协议</p>
+<h4 style="line-height: 160%; box-sizing: content-box; font-size: 20px; color: #333;">Connection</h4>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">连接层：发送连接，接受服务器等访问<br/>
+okhttp的核心部分之一<br/>
+RealConnection描述一个物理的Socket连接，由于Http2支持多路的网络请求，所以又引入了StramAllocation,通常一次网络请求对应一个或多个StramAllocation(可能发生重定向等情况)</p>
+<h4 style="line-height: 160%; box-sizing: content-box; font-size: 20px; color: #333;">Cache</h4>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">管理本地缓存</p>
+<h4 style="line-height: 160%; box-sizing: content-box; font-size: 20px; color: #333;">io</h4>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">使用了okio，支持高效的io操作</p>
+<h4 style="line-height: 160%; box-sizing: content-box; font-size: 20px; color: #333;">interceptor</h4>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">拦截层引入了类AOP接口，支持用户从各个层面对网络进行拦截，并执行相关逻辑</p>
+</div><center style="display:none !important;visibility:collapse !important;height:0 !important;white-space:nowrap;width:100%;overflow:hidden">OkHttp%20%E7%9A%84%E4%BC%98%E7%82%B9%0A*%20%E6%94%AF%E6%8C%81HTTPS%2CWebSocket%0A*%20%E5%86%85%E9%83%A8%E7%BB%B4%E6%8A%A4%E4%BB%BB%E5%8A%A1%E9%98%9F%E5%88%97%E7%BA%BF%E7%A8%8B%E6%B1%A0%EF%BC%8C%E5%8F%8B%E5%A5%BD%E6%94%AF%E6%8C%81%E5%B9%B6%E5%8F%91%E8%AE%BF%E9%97%AE%0A*%20%E5%86%85%E9%83%A8%E7%BB%B4%E6%8A%A4%E8%BF%9E%E6%8E%A5%E6%B1%A0%EF%BC%8C%E6%94%AF%E6%8C%81%E5%A4%9A%E8%B7%AF%E5%A4%8D%E7%94%A8%0A*%20%E8%BF%9E%E6%8E%A5%E6%94%AF%E6%8C%81%E6%9C%80%E4%BD%B3%E8%B7%AF%E7%94%B1%0A*%20%E6%8F%90%E4%BE%9B%E6%8B%A6%E6%88%AA%E5%99%A8%E9%93%BE%EF%BC%8C%E6%94%AF%E6%8C%81response%E4%B8%8Erequest%E7%9A%84%E5%88%86%E5%B1%82%E5%A4%84%E7%90%86%0A%0A%E5%90%8C%E6%AD%A5%E8%B0%83%E7%94%A8%0A%60%60%60%0A%40Override%20public%20Response%20execute()%20throws%20IOException%20%7B%0A%20%20%20%20%2F%2F%E9%94%81%E6%A0%87%E4%BD%8D%0A%20%20synchronized%20(this)%20%7B%0A%20%20%20%20if%20(executed)%20throw%20new%20IllegalStateException(%22Already%20Executed%22)%3B%0A%20%20%20%20executed%20%3D%20true%3B%0A%20%20%7D%0A%20%20try%20%7B%0A%20%20%20%20%2F%2F%E8%B0%83%E7%94%A8%E5%90%8C%E6%AD%A5%E7%BA%BF%E7%A8%8B%E7%9A%84executed%E6%96%B9%E6%B3%95%EF%BC%8C%E5%B0%86%E8%AF%B7%E6%B1%82%E5%8A%A0%E5%85%A5%E8%BF%9E%E6%8E%A5%E9%98%9F%E5%88%97%0A%20%20%20%20client.dispatcher().executed(this)%3B%0A%20%20%20%20%2F%2F%E6%89%A7%E8%A1%8Chttp%E8%AF%B7%E6%B1%82%0A%20%20%20%20Response%20result%20%3D%20getResponseWithInterceptorChain(false)%3B%0A%20%20%20%20if%20(result%20%3D%3D%20null)%20throw%20new%20IOException(%22Canceled%22)%3B%0A%20%20%20%20return%20result%3B%0A%20%20%7D%20finally%20%7B%0A%20%20%20%20%2F%2F%E6%97%A0%E8%AE%BA%E6%98%AF%E5%90%A6%E6%88%90%E5%8A%9F%E8%BF%9E%E6%8E%A5%EF%BC%8C%E5%B0%86%E8%AF%B7%E6%B1%82%E7%A7%BB%E9%99%A4%E8%BF%9E%E6%8E%A5%E9%98%9F%E5%88%97%0A%20%20%20%20client.dispatcher().finished(this)%3B%0A%20%20%7D%0A%7D%0A%60%60%60%0A%0A%E5%BC%82%E6%AD%A5%E8%B0%83%E7%94%A8%0A%60%60%60%0Avoid%20enqueue(Callback%20responseCallback%2C%20boolean%20forWebSocket)%20%7B%0A%20%20synchronized%20(this)%20%7B%0A%20%20%20%20if%20(executed)%20throw%20new%20IllegalStateException(%22Already%20Executed%22)%3B%0A%20%20%20%20executed%20%3D%20true%3B%0A%20%20%7D%0A%20%20%20%2F%2F%E8%B0%83%E7%94%A8enque%E6%96%B9%E6%B3%95%EF%BC%8C%E4%BC%A0%E5%85%A5%E4%B8%80%E4%B8%AAAsyncCall%E5%AF%B9%E8%B1%A1%0A%20%20%20%2F%2F%E5%AE%83%E6%98%AF%E4%B8%80%E4%B8%AAcall%E7%9A%84%E5%AE%9E%E7%8E%B0%E7%B1%BB%EF%BC%8C%E7%BB%A7%E6%89%BFNameRunnable%E6%8E%A5%E5%8F%A3%EF%BC%8C%E6%89%80%E4%BB%A5%E6%AF%8F%E4%B8%80%E4%B8%AAcall%E5%B0%B1%E6%98%AF%E4%B8%80%E4%B8%AA%E7%BA%BF%E7%A8%8B%0A%20%20client.dispatcher().enqueue(new%20AsyncCall(responseCallback%2C%20forWebSocket))%3B%0A%7D%0A%60%60%60%0A!%5Bf6e2ac304ee22891eca4ad1218602044.png%5D(evernotecid%3A%2F%2FF51182F9-C91A-4EC7-A031-83FAD430FC37%2Fappyinxiangcom%2F25653467%2FENResource%2Fp22)%0A%0A%23%23%23%23%20interface%0A%E6%8E%A5%E5%8F%A3%E5%B1%82%EF%BC%8C%E8%B4%9F%E8%B4%A3%E6%8E%A5%E5%8F%97%E7%BD%91%E7%BB%9C%E8%AE%BF%E9%97%AE%E7%9A%84%E8%AF%B7%E6%B1%82%0ACall%3A%E5%AE%9E%E8%B4%A8%E5%B0%B1%E6%98%AF%E8%AF%B7%E6%B1%82%EF%BC%8C%E5%AE%9E%E7%8E%B0%E6%98%AFRealCall%2C%E5%86%85%E9%83%A8%E7%BB%B4%E6%8A%A4%E4%B8%80%E4%B8%AAAsyncCall%2C%E5%B9%B6%E4%B8%94%E5%AE%9E%E7%8E%B0nameRannable%E6%8E%A5%E5%8F%A3%0AOkHttpClient%3Aokhttp%E7%9A%84%E5%AE%A2%E6%88%B7%E7%AB%AF%EF%BC%8C%E5%86%85%E9%83%A8%E7%BB%B4%E6%8A%A4%E4%BA%86%E4%BB%BB%E5%8A%A1%E9%98%9F%E5%88%97%EF%BC%8C%E8%BF%9E%E6%8E%A5%E6%B1%A0%EF%BC%8Ccache%EF%BC%8Cintercaptor%E3%80%82%E6%89%80%E4%BB%A5%E9%80%9A%E5%B8%B8%E4%BD%BF%E7%94%A8%E5%8D%95%E4%BE%8B%E6%A8%A1%E5%BC%8F%E4%BD%BF%E7%94%A8%E5%AE%83%E3%80%82%0Adispatcher%EF%BC%9A%E5%86%85%E9%83%A8%E7%BB%B4%E6%8A%A4%E4%BA%86%E4%BB%BB%E7%B4%A0%E9%98%9F%E5%88%97%E7%BA%BF%E7%A8%8B%E6%B1%A0%0A%0A%23%23%23%23%20protocal%0A%E5%8D%8F%E8%AE%AE%E5%B1%82%EF%BC%8C%E8%B4%9F%E8%B4%A3%E5%A4%84%E7%90%86%E5%8D%8F%E8%AE%AE%E9%80%BB%E8%BE%91%0A%E6%94%AF%E6%8C%81http1.x%EF%BC%8Chttp2%EF%BC%8CwebSocket%EF%BC%8CTLS%2FSSL%E5%8D%8F%E8%AE%AE%0A%0A%23%23%23%23%20Connection%0A%E8%BF%9E%E6%8E%A5%E5%B1%82%EF%BC%9A%E5%8F%91%E9%80%81%E8%BF%9E%E6%8E%A5%EF%BC%8C%E6%8E%A5%E5%8F%97%E6%9C%8D%E5%8A%A1%E5%99%A8%E7%AD%89%E8%AE%BF%E9%97%AE%0Aokhttp%E7%9A%84%E6%A0%B8%E5%BF%83%E9%83%A8%E5%88%86%E4%B9%8B%E4%B8%80%0ARealConnection%E6%8F%8F%E8%BF%B0%E4%B8%80%E4%B8%AA%E7%89%A9%E7%90%86%E7%9A%84Socket%E8%BF%9E%E6%8E%A5%EF%BC%8C%E7%94%B1%E4%BA%8EHttp2%E6%94%AF%E6%8C%81%E5%A4%9A%E8%B7%AF%E7%9A%84%E7%BD%91%E7%BB%9C%E8%AF%B7%E6%B1%82%EF%BC%8C%E6%89%80%E4%BB%A5%E5%8F%88%E5%BC%95%E5%85%A5%E4%BA%86StramAllocation%2C%E9%80%9A%E5%B8%B8%E4%B8%80%E6%AC%A1%E7%BD%91%E7%BB%9C%E8%AF%B7%E6%B1%82%E5%AF%B9%E5%BA%94%E4%B8%80%E4%B8%AA%E6%88%96%E5%A4%9A%E4%B8%AAStramAllocation(%E5%8F%AF%E8%83%BD%E5%8F%91%E7%94%9F%E9%87%8D%E5%AE%9A%E5%90%91%E7%AD%89%E6%83%85%E5%86%B5)%0A%0A%23%23%23%23%20Cache%0A%E7%AE%A1%E7%90%86%E6%9C%AC%E5%9C%B0%E7%BC%93%E5%AD%98%0A%0A%23%23%23%23%20io%0A%E4%BD%BF%E7%94%A8%E4%BA%86okio%EF%BC%8C%E6%94%AF%E6%8C%81%E9%AB%98%E6%95%88%E7%9A%84io%E6%93%8D%E4%BD%9C%0A%0A%23%23%23%23%20interceptor%0A%E6%8B%A6%E6%88%AA%E5%B1%82%E5%BC%95%E5%85%A5%E4%BA%86%E7%B1%BBAOP%E6%8E%A5%E5%8F%A3%EF%BC%8C%E6%94%AF%E6%8C%81%E7%94%A8%E6%88%B7%E4%BB%8E%E5%90%84%E4%B8%AA%E5%B1%82%E9%9D%A2%E5%AF%B9%E7%BD%91%E7%BB%9C%E8%BF%9B%E8%A1%8C%E6%8B%A6%E6%88%AA%EF%BC%8C%E5%B9%B6%E6%89%A7%E8%A1%8C%E7%9B%B8%E5%85%B3%E9%80%BB%E8%BE%91</center></body></html>

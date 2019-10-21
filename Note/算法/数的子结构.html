@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/><meta name="exporter-version" content="Evernote Mac 9.2.0 (458672)"/><meta name="altitude" content="51.93987274169922"/><meta name="author" content="林"/><meta name="created" content="2019-10-18 11:10:53 +0000"/><meta name="latitude" content="27.82431030273438"/><meta name="longitude" content="113.099568216871"/><meta name="source" content="desktop.mac"/><meta name="updated" content="2019-10-18 11:20:37 +0000"/><meta name="content-class" content="yinxiang.markdown"/><title>数的子结构</title></head><body><div style="font-size: 14px; margin: 0; padding: 0; width: 100%;"><p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">输入两棵二叉树A，B，判断B是不是A的子结构。（ps：我们约定空树不是任意一个树的子结构）</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">public boolean HasSubtree(TreeNode root1,TreeNode root2) {
+        if (root1==null||root2==null)
+            return false;
+        return treeIterator(root1,root2);
+    }
+    
+    private boolean treeIterator(TreeNode root1,TreeNode root2){
+        if (root1==null)
+            return false;
+        List&lt;Integer&gt; list = new ArrayList&lt;&gt;();
+        Stack&lt;TreeNode&gt; stack = new Stack&lt;&gt;();
+        stack.push(root1);
+        while (!stack.isEmpty()){
+            TreeNode node = stack.pop();
+            boolean isEquals = isEquals(node,root2);
+            if (isEquals) return true;
+            if (node.right!=null)
+                stack.push(node.right);
+            if (node.left!=null)
+                stack.push(node.left);
+        }
+        return false;
+    }
+    
+    private boolean isEquals(TreeNode root1,TreeNode root2){
+        if (root1==null&amp;&amp;root2==null)
+            return true;
+        if (root2 == null)
+            return true;
+        else if (root1 == null)
+            return false;
+        if (root1.val==root2.val){
+            boolean leftEquals = isEquals(root1.left,root2.left);
+            boolean rightEquals = isEquals(root1.right,root2.right);
+            return leftEquals&amp;&amp;rightEquals;
+        }
+        return false;
+    }
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">题意是求一个树是否和另一个树的子结构相同(不是只是子树，只要树的结构中包含它就算相对)</p>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">思路很简单：先遍历主树，对每个节点进行判断是否是子结构，如果是就返回true，全部遍历完没找到就返回false。</p>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">因为是子结构，所以判断时如果递归到子树的叶节点，那这次递归路就相等，最终某一个节点相等的依据是左右两条递归路都相等</p>
+</div><center style="display:none !important;visibility:collapse !important;height:0 !important;white-space:nowrap;width:100%;overflow:hidden">%E8%BE%93%E5%85%A5%E4%B8%A4%E6%A3%B5%E4%BA%8C%E5%8F%89%E6%A0%91A%EF%BC%8CB%EF%BC%8C%E5%88%A4%E6%96%ADB%E6%98%AF%E4%B8%8D%E6%98%AFA%E7%9A%84%E5%AD%90%E7%BB%93%E6%9E%84%E3%80%82%EF%BC%88ps%EF%BC%9A%E6%88%91%E4%BB%AC%E7%BA%A6%E5%AE%9A%E7%A9%BA%E6%A0%91%E4%B8%8D%E6%98%AF%E4%BB%BB%E6%84%8F%E4%B8%80%E4%B8%AA%E6%A0%91%E7%9A%84%E5%AD%90%E7%BB%93%E6%9E%84%EF%BC%89%0A%60%60%60%0Apublic%20boolean%20HasSubtree(TreeNode%20root1%2CTreeNode%20root2)%20%7B%0A%20%20%20%20%20%20%20%20if%20(root1%3D%3Dnull%7C%7Croot2%3D%3Dnull)%0A%20%20%20%20%20%20%20%20%20%20%20%20return%20false%3B%0A%20%20%20%20%20%20%20%20return%20treeIterator(root1%2Croot2)%3B%0A%20%20%20%20%7D%0A%20%20%20%20%0A%20%20%20%20private%20boolean%20treeIterator(TreeNode%20root1%2CTreeNode%20root2)%7B%0A%20%20%20%20%20%20%20%20if%20(root1%3D%3Dnull)%0A%20%20%20%20%20%20%20%20%20%20%20%20return%20false%3B%0A%20%20%20%20%20%20%20%20List%3CInteger%3E%20list%20%3D%20new%20ArrayList%3C%3E()%3B%0A%20%20%20%20%20%20%20%20Stack%3CTreeNode%3E%20stack%20%3D%20new%20Stack%3C%3E()%3B%0A%20%20%20%20%20%20%20%20stack.push(root1)%3B%0A%20%20%20%20%20%20%20%20while%20(!stack.isEmpty())%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20TreeNode%20node%20%3D%20stack.pop()%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20boolean%20isEquals%20%3D%20isEquals(node%2Croot2)%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20if%20(isEquals)%20return%20true%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20if%20(node.right!%3Dnull)%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20stack.push(node.right)%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20if%20(node.left!%3Dnull)%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20stack.push(node.left)%3B%0A%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20return%20false%3B%0A%20%20%20%20%7D%0A%20%20%20%20%0A%20%20%20%20private%20boolean%20isEquals(TreeNode%20root1%2CTreeNode%20root2)%7B%0A%20%20%20%20%20%20%20%20if%20(root1%3D%3Dnull%26%26root2%3D%3Dnull)%0A%20%20%20%20%20%20%20%20%20%20%20%20return%20true%3B%0A%20%20%20%20%20%20%20%20if%20(root2%20%3D%3D%20null)%0A%20%20%20%20%20%20%20%20%20%20%20%20return%20true%3B%0A%20%20%20%20%20%20%20%20else%20if%20(root1%20%3D%3D%20null)%0A%20%20%20%20%20%20%20%20%20%20%20%20return%20false%3B%0A%20%20%20%20%20%20%20%20if%20(root1.val%3D%3Droot2.val)%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20boolean%20leftEquals%20%3D%20isEquals(root1.left%2Croot2.left)%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20boolean%20rightEquals%20%3D%20isEquals(root1.right%2Croot2.right)%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20return%20leftEquals%26%26rightEquals%3B%0A%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20return%20false%3B%0A%20%20%20%20%7D%0A%60%60%60%0A%E9%A2%98%E6%84%8F%E6%98%AF%E6%B1%82%E4%B8%80%E4%B8%AA%E6%A0%91%E6%98%AF%E5%90%A6%E5%92%8C%E5%8F%A6%E4%B8%80%E4%B8%AA%E6%A0%91%E7%9A%84%E5%AD%90%E7%BB%93%E6%9E%84%E7%9B%B8%E5%90%8C(%E4%B8%8D%E6%98%AF%E5%8F%AA%E6%98%AF%E5%AD%90%E6%A0%91%EF%BC%8C%E5%8F%AA%E8%A6%81%E6%A0%91%E7%9A%84%E7%BB%93%E6%9E%84%E4%B8%AD%E5%8C%85%E5%90%AB%E5%AE%83%E5%B0%B1%E7%AE%97%E7%9B%B8%E5%AF%B9)%0A%0A%E6%80%9D%E8%B7%AF%E5%BE%88%E7%AE%80%E5%8D%95%EF%BC%9A%E5%85%88%E9%81%8D%E5%8E%86%E4%B8%BB%E6%A0%91%EF%BC%8C%E5%AF%B9%E6%AF%8F%E4%B8%AA%E8%8A%82%E7%82%B9%E8%BF%9B%E8%A1%8C%E5%88%A4%E6%96%AD%E6%98%AF%E5%90%A6%E6%98%AF%E5%AD%90%E7%BB%93%E6%9E%84%EF%BC%8C%E5%A6%82%E6%9E%9C%E6%98%AF%E5%B0%B1%E8%BF%94%E5%9B%9Etrue%EF%BC%8C%E5%85%A8%E9%83%A8%E9%81%8D%E5%8E%86%E5%AE%8C%E6%B2%A1%E6%89%BE%E5%88%B0%E5%B0%B1%E8%BF%94%E5%9B%9Efalse%E3%80%82%0A%0A%E5%9B%A0%E4%B8%BA%E6%98%AF%E5%AD%90%E7%BB%93%E6%9E%84%EF%BC%8C%E6%89%80%E4%BB%A5%E5%88%A4%E6%96%AD%E6%97%B6%E5%A6%82%E6%9E%9C%E9%80%92%E5%BD%92%E5%88%B0%E5%AD%90%E6%A0%91%E7%9A%84%E5%8F%B6%E8%8A%82%E7%82%B9%EF%BC%8C%E9%82%A3%E8%BF%99%E6%AC%A1%E9%80%92%E5%BD%92%E8%B7%AF%E5%B0%B1%E7%9B%B8%E7%AD%89%EF%BC%8C%E6%9C%80%E7%BB%88%E6%9F%90%E4%B8%80%E4%B8%AA%E8%8A%82%E7%82%B9%E7%9B%B8%E7%AD%89%E7%9A%84%E4%BE%9D%E6%8D%AE%E6%98%AF%E5%B7%A6%E5%8F%B3%E4%B8%A4%E6%9D%A1%E9%80%92%E5%BD%92%E8%B7%AF%E9%83%BD%E7%9B%B8%E7%AD%89</center></body></html>

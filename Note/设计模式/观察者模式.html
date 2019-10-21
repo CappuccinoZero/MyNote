@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/><meta name="exporter-version" content="Evernote Mac 9.2.0 (458672)"/><meta name="author" content="林"/><meta name="created" content="2019-09-30 04:46:56 +0000"/><meta name="source" content="desktop.mac"/><meta name="updated" content="2019-09-30 04:53:30 +0000"/><meta name="content-class" content="yinxiang.markdown"/><title>观察者模式</title></head><body><div style="font-size: 14px; margin: 0; padding: 0; width: 100%;"><h3 style="line-height: 160%; box-sizing: content-box; font-weight: 700; font-size: 27px; color: #333;">概念</h3>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">观察者模式是对象与对象之间的一种一对多依赖，别名：订阅-发布模式<br/>
+一旦被观察者状态变化，所有观察者就会收到变化。观察者模式是一种行为模式，注重的是观察者与被观察之间的通讯。</p>
+<h3 style="line-height: 160%; box-sizing: content-box; font-weight: 700; font-size: 27px; color: #333;">实现</h3>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">首先是一个被观察者都基类</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">abstract class BaseObservable {
+
+    protected val observers by lazy { ArrayList&lt;BaseObserver&gt;() }
+
+    //与被观察者订阅关系
+    fun subscribe(observer: BaseObserver){
+        observers.add(observer)
+    }
+
+    //退订与观察者订阅都关系
+    fun unsubscribe(observer: BaseObserver){
+        observers.remove(observer)
+    }
+
+    abstract fun &lt;T&gt;notifiObserver(state: T)
+
+}
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">观察者都接口定义</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">interface BaseObserver {
+    fun &lt;T&gt;observer(state:T)
+}
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">被观察者实现</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">class Observable:BaseObservable() {
+    //被观察者状态改变通知所有观察者
+    override fun &lt;T&gt; notifiObserver(state: T) {
+        for (observer in observers){
+            observer.observer(state)
+        }
+    }
+}
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">被观察实现</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">class Observer: BaseObserver {
+    override fun &lt;T&gt; observer(state: T) {
+        when(state){
+            // 根据被观察对象都不同状态，作出不同反应
+        }
+    }
+}
+</code></pre>
+</div><center style="display:none !important;visibility:collapse !important;height:0 !important;white-space:nowrap;width:100%;overflow:hidden">%23%23%23%20%E6%A6%82%E5%BF%B5%0A%20%20%20%E8%A7%82%E5%AF%9F%E8%80%85%E6%A8%A1%E5%BC%8F%E6%98%AF%E5%AF%B9%E8%B1%A1%E4%B8%8E%E5%AF%B9%E8%B1%A1%E4%B9%8B%E9%97%B4%E7%9A%84%E4%B8%80%E7%A7%8D%E4%B8%80%E5%AF%B9%E5%A4%9A%E4%BE%9D%E8%B5%96%EF%BC%8C%E5%88%AB%E5%90%8D%EF%BC%9A%E8%AE%A2%E9%98%85-%E5%8F%91%E5%B8%83%E6%A8%A1%E5%BC%8F%0A%20%20%20%E4%B8%80%E6%97%A6%E8%A2%AB%E8%A7%82%E5%AF%9F%E8%80%85%E7%8A%B6%E6%80%81%E5%8F%98%E5%8C%96%EF%BC%8C%E6%89%80%E6%9C%89%E8%A7%82%E5%AF%9F%E8%80%85%E5%B0%B1%E4%BC%9A%E6%94%B6%E5%88%B0%E5%8F%98%E5%8C%96%E3%80%82%E8%A7%82%E5%AF%9F%E8%80%85%E6%A8%A1%E5%BC%8F%E6%98%AF%E4%B8%80%E7%A7%8D%E8%A1%8C%E4%B8%BA%E6%A8%A1%E5%BC%8F%EF%BC%8C%E6%B3%A8%E9%87%8D%E7%9A%84%E6%98%AF%E8%A7%82%E5%AF%9F%E8%80%85%E4%B8%8E%E8%A2%AB%E8%A7%82%E5%AF%9F%E4%B9%8B%E9%97%B4%E7%9A%84%E9%80%9A%E8%AE%AF%E3%80%82%0A%23%23%23%20%E5%AE%9E%E7%8E%B0%0A%E9%A6%96%E5%85%88%E6%98%AF%E4%B8%80%E4%B8%AA%E8%A2%AB%E8%A7%82%E5%AF%9F%E8%80%85%E9%83%BD%E5%9F%BA%E7%B1%BB%0A%60%60%60%0Aabstract%20class%20BaseObservable%20%7B%0A%0A%20%20%20%20protected%20val%20observers%20by%20lazy%20%7B%20ArrayList%3CBaseObserver%3E()%20%7D%0A%0A%20%20%20%20%2F%2F%E4%B8%8E%E8%A2%AB%E8%A7%82%E5%AF%9F%E8%80%85%E8%AE%A2%E9%98%85%E5%85%B3%E7%B3%BB%0A%20%20%20%20fun%20subscribe(observer%3A%20BaseObserver)%7B%0A%20%20%20%20%20%20%20%20observers.add(observer)%0A%20%20%20%20%7D%0A%0A%20%20%20%20%2F%2F%E9%80%80%E8%AE%A2%E4%B8%8E%E8%A7%82%E5%AF%9F%E8%80%85%E8%AE%A2%E9%98%85%E9%83%BD%E5%85%B3%E7%B3%BB%0A%20%20%20%20fun%20unsubscribe(observer%3A%20BaseObserver)%7B%0A%20%20%20%20%20%20%20%20observers.remove(observer)%0A%20%20%20%20%7D%0A%0A%20%20%20%20abstract%20fun%20%3CT%3EnotifiObserver(state%3A%20T)%0A%0A%7D%0A%60%60%60%0A%0A%E8%A7%82%E5%AF%9F%E8%80%85%E9%83%BD%E6%8E%A5%E5%8F%A3%E5%AE%9A%E4%B9%89%0A%0A%60%60%60%0Ainterface%20BaseObserver%20%7B%0A%20%20%20%20fun%20%3CT%3Eobserver(state%3AT)%0A%7D%0A%60%60%60%0A%0A%E8%A2%AB%E8%A7%82%E5%AF%9F%E8%80%85%E5%AE%9E%E7%8E%B0%0A%60%60%60%0Aclass%20Observable%3ABaseObservable()%20%7B%0A%20%20%20%20%2F%2F%E8%A2%AB%E8%A7%82%E5%AF%9F%E8%80%85%E7%8A%B6%E6%80%81%E6%94%B9%E5%8F%98%E9%80%9A%E7%9F%A5%E6%89%80%E6%9C%89%E8%A7%82%E5%AF%9F%E8%80%85%0A%20%20%20%20override%20fun%20%3CT%3E%20notifiObserver(state%3A%20T)%20%7B%0A%20%20%20%20%20%20%20%20for%20(observer%20in%20observers)%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20observer.observer(state)%0A%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%7D%0A%7D%0A%60%60%60%0A%0A%E8%A2%AB%E8%A7%82%E5%AF%9F%E5%AE%9E%E7%8E%B0%0A%60%60%60%0Aclass%20Observer%3A%20BaseObserver%20%7B%0A%20%20%20%20override%20fun%20%3CT%3E%20observer(state%3A%20T)%20%7B%0A%20%20%20%20%20%20%20%20when(state)%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20%2F%2F%20%E6%A0%B9%E6%8D%AE%E8%A2%AB%E8%A7%82%E5%AF%9F%E5%AF%B9%E8%B1%A1%E9%83%BD%E4%B8%8D%E5%90%8C%E7%8A%B6%E6%80%81%EF%BC%8C%E4%BD%9C%E5%87%BA%E4%B8%8D%E5%90%8C%E5%8F%8D%E5%BA%94%0A%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%7D%0A%7D%0A%60%60%60</center></body></html>

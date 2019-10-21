@@ -1,0 +1,228 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/><meta name="exporter-version" content="Evernote Mac 9.2.0 (458672)"/><meta name="altitude" content="50.05877685546875"/><meta name="author" content="林"/><meta name="created" content="2019-10-16 11:54:33 +0000"/><meta name="latitude" content="27.8245849609375"/><meta name="longitude" content="113.0987540436226"/><meta name="source" content="desktop.mac"/><meta name="updated" content="2019-10-16 12:19:56 +0000"/><meta name="content-class" content="yinxiang.markdown"/><title>OkHttp 缓存策略</title></head><body><div style="font-size: 14px; margin: 0; padding: 0; width: 100%;"><p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;"><strong style="line-height: 160%; box-sizing: content-box; font-weight: 700;">Expires</strong></p>
+<ul style="line-height: 160%; box-sizing: content-box; display: block; list-style-type: disc; padding-left: 30px; margin: 6px 0 10px; color: #333;">
+<li style="line-height: 160%; box-sizing: content-box; position: relative;">过期时间，一般在服务器回应的报头中，用于告知客户端资源的保质期<br/>
+<strong style="line-height: 160%; box-sizing: content-box; font-weight: 700;">Cache-Control</strong><br/>
+缓存控制，优先级比expires高，单位秒</li>
+</ul>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">Cache-Control:max-age=24*60*60,public
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;"><strong style="line-height: 160%; box-sizing: content-box; font-weight: 700;">Last-Modified-Date</strong><br/>
+客户端第一次请求，服务器返回</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">Last-Modified: Tue, 12 Jan 2016 09:31:27 GMT
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">客户端第二次请求，请求头加上</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">If-Modified-Since: Tue, 12 Jan 2016 09:31:27 GMT
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">如果资源可用，服务器返回304<br/>
+<strong style="line-height: 160%; box-sizing: content-box; font-weight: 700;">ETag</strong><br/>
+通过ETag来判断资源是否被修改<br/>
+客户端请求头加上</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">If-None-Match: "5694c7ef-24dc"
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;"><strong style="line-height: 160%; box-sizing: content-box; font-weight: 700;">no-cache/no-store</strong>不使用缓存<br/>
+<strong style="line-height: 160%; box-sizing: content-box; font-weight: 700;">only-if-cahce</strong>只使用缓存</p>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">CacheInterceptor</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">@Override public Response intercept(Chain chain) throws IOException {
+    //查看是否有可用的缓存
+    Response cacheCandidate = cache != null
+        ? cache.get(chain.request())
+        : null;
+
+    long now = System.currentTimeMillis();
+    
+    //获取当前的缓存策略，获取网络请求以及缓存的响应
+    //CacheStrategy 缓存策略
+    //它通过指定networkRequest和cacheRequest来判断缓存策略
+    CacheStrategy strategy = new CacheStrategy.Factory(now, chain.request(), cacheCandidate).get();
+    Request networkRequest = strategy.networkRequest;
+    Response cacheResponse = strategy.cacheResponse;
+
+    //更新击中率信息
+    if (cache != null) {
+      cache.trackResponse(strategy);
+    }
+
+    //如果当前的缓存不可用，关掉它
+    if (cacheCandidate != null &amp;&amp; cacheResponse == null) {
+      closeQuietly(cacheCandidate.body()); // The cache candidate wasn't applicable. Close it.
+    }
+
+    // 如果网络请求不能用，并且没有可用缓存，直接返回504
+    if (networkRequest == null &amp;&amp; cacheResponse == null) {
+      return new Response.Builder()
+          .request(chain.request())
+          .protocol(Protocol.HTTP_1_1)
+          .code(504)
+          .message("Unsatisfiable Request (only-if-cached)")
+          .body(Util.EMPTY_RESPONSE)
+          .sentRequestAtMillis(-1L)
+          .receivedResponseAtMillis(System.currentTimeMillis())
+          .build();
+    }
+
+    // 如果网络请求不能用，直接返回可用缓存
+    if (networkRequest == null) {
+      return cacheResponse.newBuilder()
+          .cacheResponse(stripBody(cacheResponse))
+          .build();
+    }
+
+    //与服务器进行通信，获得服务器回应
+    Response networkResponse = null;
+    try {
+      networkResponse = chain.proceed(networkRequest);
+    } finally {
+      // If we're crashing on I/O or otherwise, don't leak the cache body.
+      if (networkResponse == null &amp;&amp; cacheCandidate != null) {
+        closeQuietly(cacheCandidate.body());
+      }
+    }
+
+    // 缓存不为空，说明目前在做有条件的请求
+    if (cacheResponse != null) {
+        //服务器说缓存还可以用，直接将网络响应和缓存结合起来返回
+      if (networkResponse.code() == HTTP_NOT_MODIFIED) {
+        Response response = cacheResponse.newBuilder()
+            .headers(combine(cacheResponse.headers(), networkResponse.headers()))
+            .sentRequestAtMillis(networkResponse.sentRequestAtMillis())
+            .receivedResponseAtMillis(networkResponse.receivedResponseAtMillis())
+            .cacheResponse(stripBody(cacheResponse))
+            .networkResponse(stripBody(networkResponse))
+            .build();
+        networkResponse.body().close();
+
+        // Update the cache after combining headers but before stripping the
+        // Content-Encoding header (as performed by initContentStream()).
+        cache.trackConditionalCacheHit();
+        cache.update(cacheResponse, response);
+        return response;
+      } else {
+        //缓存过期不能用了，关闭它
+        closeQuietly(cacheResponse.body());
+      }
+    }
+    
+    //以下是缓存为空的情况
+    //整合响应整合
+    Response response = networkResponse.newBuilder()
+        .cacheResponse(stripBody(cacheResponse))
+        .networkResponse(stripBody(networkResponse))
+        .build();
+
+    //如果缓存集不为空
+    if (cache != null) {
+        //可以缓存，将网络响应交给缓存，然后返回响应
+      if (HttpHeaders.hasBody(response) &amp;&amp; CacheStrategy.isCacheable(response, networkRequest)) {
+        // Offer this request to the cache.
+        CacheRequest cacheRequest = cache.put(response);
+        return cacheWritingResponse(cacheRequest, response);
+      }
+      
+      //不缓存，直接去掉缓存
+      if (HttpMethod.invalidatesCache(networkRequest.method())) {
+        try {
+          cache.remove(networkRequest);
+        } catch (IOException ignored) {
+          // The cache cannot be written.
+        }
+      }
+    }
+    
+    //返回网络响应
+    return response;
+  }
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">CacheStrategy.Factory(now, chain.request(), cacheCandidate).get();</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">private CacheStrategy getCandidate() {
+      // 若本地没有缓存，发起网络请求
+      if (cacheResponse == null) {
+        return new CacheStrategy(request, null);
+      }
+
+      // 如果当前请求是HTTPS，而缓存没有TLS握手，重新发起网络请求
+      if (request.isHttps() &amp;&amp; cacheResponse.handshake() == null) {
+        return new CacheStrategy(request, null);
+      }
+
+      // 如果不能使用缓存
+      if (!isCacheable(cacheResponse, request)) {
+        return new CacheStrategy(request, null);
+      }
+        
+ 
+      //如果当前的缓存策略是不缓存或者是conditional get，发起网络请求
+      CacheControl requestCaching = request.cacheControl();
+      if (requestCaching.noCache() || hasConditions(request)) {
+        return new CacheStrategy(request, null);
+      }
+
+      long ageMillis = cacheResponseAge();
+
+      long freshMillis = computeFreshnessLifetime();
+
+      if (requestCaching.maxAgeSeconds() != -1) {
+        freshMillis = Math.min(freshMillis, SECONDS.toMillis(requestCaching.maxAgeSeconds()));
+      }
+
+      long minFreshMillis = 0;
+      if (requestCaching.minFreshSeconds() != -1) {
+        minFreshMillis = SECONDS.toMillis(requestCaching.minFreshSeconds());
+      }
+
+      long maxStaleMillis = 0;
+      CacheControl responseCaching = cacheResponse.cacheControl();
+      if (!responseCaching.mustRevalidate() &amp;&amp; requestCaching.maxStaleSeconds() != -1) {
+        maxStaleMillis = SECONDS.toMillis(requestCaching.maxStaleSeconds());
+      }
+
+
+      if (!responseCaching.noCache() &amp;&amp; ageMillis + minFreshMillis &lt; freshMillis + maxStaleMillis)         {
+        Response.Builder builder = cacheResponse.newBuilder();
+        if (ageMillis + minFreshMillis &gt;= freshMillis) {
+            //缓存以过期，但可以用，添加110警告码
+          builder.addHeader("Warning", "110 HttpURLConnection \"Response is stale\"");
+        }
+        long oneDayMillis = 24 * 60 * 60 * 1000L;
+        if (ageMillis &gt; oneDayMillis &amp;&amp; isFreshnessLifetimeHeuristic()) {
+          builder.addHeader("Warning", "113 HttpURLConnection \"Heuristic expiration\"");
+        }
+        return new CacheStrategy(null, builder.build());
+      }
+
+      // 发起conditional get请求
+      String conditionName;
+      String conditionValue;
+      if (etag != null) {
+        conditionName = "If-None-Match";
+        conditionValue = etag;
+      } else if (lastModified != null) {
+        conditionName = "If-Modified-Since";
+        conditionValue = lastModifiedString;
+      } else if (servedDate != null) {
+        conditionName = "If-Modified-Since";
+        conditionValue = servedDateString;
+      } else {
+        return new CacheStrategy(request, null); 
+      }
+
+      Headers.Builder conditionalRequestHeaders = request.headers().newBuilder();
+      Internal.instance.addLenient(conditionalRequestHeaders, conditionName, conditionValue);
+
+      Request conditionalRequest = request.newBuilder()
+          .headers(conditionalRequestHeaders.build())
+          .build();
+      return new CacheStrategy(conditionalRequest, cacheResponse);
+    }
+</code></pre>
+<hr style="line-height: 160%; box-sizing: content-box; border-top: 1px solid #eee; margin: 16px 0;"/>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">Cache的缓存策略DislruCache<br/>
+DislruCache通过缓存的requestCount(请求数)，networkCount(回应数)，hitCount(击中数)来优化缓存效率</p>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;"><strong style="line-height: 160%; box-sizing: content-box; font-weight: 700;">DisLruCache.Entry</strong><br/>
+一个DisLruCache.Entry对应一个缓存实体，它的组成：</p>
+<ul style="line-height: 160%; box-sizing: content-box; display: block; list-style-type: disc; padding-left: 30px; margin: 6px 0 10px; color: #333;">
+<li style="line-height: 160%; box-sizing: content-box; position: relative;">key，请求URL的MD-5字符串，标识符</li>
+<li style="line-height: 160%; box-sizing: content-box; position: relative;">cleanFiles/dirtyFiles ，okHttp中，每个entry包含两个cleanFiles/dirtyFiles,其中第一个用来记录cache的meta记录（URL,握手记录，SSL握手记录，创建时间。。），第二个用来记录真正的cache记录，cleanFiles用来记录稳定状态的cache，dirtyFiles用来记录修改或创建状态的cache</li>
+</ul>
+</div><center style="display:none !important;visibility:collapse !important;height:0 !important;white-space:nowrap;width:100%;overflow:hidden">**Expires**%0A*%20%E8%BF%87%E6%9C%9F%E6%97%B6%E9%97%B4%EF%BC%8C%E4%B8%80%E8%88%AC%E5%9C%A8%E6%9C%8D%E5%8A%A1%E5%99%A8%E5%9B%9E%E5%BA%94%E7%9A%84%E6%8A%A5%E5%A4%B4%E4%B8%AD%EF%BC%8C%E7%94%A8%E4%BA%8E%E5%91%8A%E7%9F%A5%E5%AE%A2%E6%88%B7%E7%AB%AF%E8%B5%84%E6%BA%90%E7%9A%84%E4%BF%9D%E8%B4%A8%E6%9C%9F%0A**Cache-Control**%0A%E7%BC%93%E5%AD%98%E6%8E%A7%E5%88%B6%EF%BC%8C%E4%BC%98%E5%85%88%E7%BA%A7%E6%AF%94expires%E9%AB%98%EF%BC%8C%E5%8D%95%E4%BD%8D%E7%A7%92%0A%60%60%60%0ACache-Control%3Amax-age%3D24*60*60%2Cpublic%0A%60%60%60%0A**Last-Modified-Date**%0A%E5%AE%A2%E6%88%B7%E7%AB%AF%E7%AC%AC%E4%B8%80%E6%AC%A1%E8%AF%B7%E6%B1%82%EF%BC%8C%E6%9C%8D%E5%8A%A1%E5%99%A8%E8%BF%94%E5%9B%9E%0A%60%60%60%0ALast-Modified%3A%20Tue%2C%2012%20Jan%202016%2009%3A31%3A27%20GMT%0A%60%60%60%0A%E5%AE%A2%E6%88%B7%E7%AB%AF%E7%AC%AC%E4%BA%8C%E6%AC%A1%E8%AF%B7%E6%B1%82%EF%BC%8C%E8%AF%B7%E6%B1%82%E5%A4%B4%E5%8A%A0%E4%B8%8A%0A%60%60%60%0AIf-Modified-Since%3A%20Tue%2C%2012%20Jan%202016%2009%3A31%3A27%20GMT%0A%60%60%60%0A%E5%A6%82%E6%9E%9C%E8%B5%84%E6%BA%90%E5%8F%AF%E7%94%A8%EF%BC%8C%E6%9C%8D%E5%8A%A1%E5%99%A8%E8%BF%94%E5%9B%9E304%0A**ETag**%0A%E9%80%9A%E8%BF%87ETag%E6%9D%A5%E5%88%A4%E6%96%AD%E8%B5%84%E6%BA%90%E6%98%AF%E5%90%A6%E8%A2%AB%E4%BF%AE%E6%94%B9%0A%E5%AE%A2%E6%88%B7%E7%AB%AF%E8%AF%B7%E6%B1%82%E5%A4%B4%E5%8A%A0%E4%B8%8A%0A%60%60%60%0AIf-None-Match%3A%20%225694c7ef-24dc%22%0A%60%60%60%0A**no-cache%2Fno-store**%E4%B8%8D%E4%BD%BF%E7%94%A8%E7%BC%93%E5%AD%98%0A**only-if-cahce**%E5%8F%AA%E4%BD%BF%E7%94%A8%E7%BC%93%E5%AD%98%0A%0A%E3%80%80CacheInterceptor%0A%60%60%60%0A%40Override%20public%20Response%20intercept(Chain%20chain)%20throws%20IOException%20%7B%0A%20%20%20%20%2F%2F%E6%9F%A5%E7%9C%8B%E6%98%AF%E5%90%A6%E6%9C%89%E5%8F%AF%E7%94%A8%E7%9A%84%E7%BC%93%E5%AD%98%0A%20%20%20%20Response%20cacheCandidate%20%3D%20cache%20!%3D%20null%0A%20%20%20%20%20%20%20%20%3F%20cache.get(chain.request())%0A%20%20%20%20%20%20%20%20%3A%20null%3B%0A%0A%20%20%20%20long%20now%20%3D%20System.currentTimeMillis()%3B%0A%20%20%20%20%0A%20%20%20%20%2F%2F%E8%8E%B7%E5%8F%96%E5%BD%93%E5%89%8D%E7%9A%84%E7%BC%93%E5%AD%98%E7%AD%96%E7%95%A5%EF%BC%8C%E8%8E%B7%E5%8F%96%E7%BD%91%E7%BB%9C%E8%AF%B7%E6%B1%82%E4%BB%A5%E5%8F%8A%E7%BC%93%E5%AD%98%E7%9A%84%E5%93%8D%E5%BA%94%0A%20%20%20%20%2F%2FCacheStrategy%20%E7%BC%93%E5%AD%98%E7%AD%96%E7%95%A5%0A%20%20%20%20%2F%2F%E5%AE%83%E9%80%9A%E8%BF%87%E6%8C%87%E5%AE%9AnetworkRequest%E5%92%8CcacheRequest%E6%9D%A5%E5%88%A4%E6%96%AD%E7%BC%93%E5%AD%98%E7%AD%96%E7%95%A5%0A%20%20%20%20CacheStrategy%20strategy%20%3D%20new%20CacheStrategy.Factory(now%2C%20chain.request()%2C%20cacheCandidate).get()%3B%0A%20%20%20%20Request%20networkRequest%20%3D%20strategy.networkRequest%3B%0A%20%20%20%20Response%20cacheResponse%20%3D%20strategy.cacheResponse%3B%0A%0A%20%20%20%20%2F%2F%E6%9B%B4%E6%96%B0%E5%87%BB%E4%B8%AD%E7%8E%87%E4%BF%A1%E6%81%AF%0A%20%20%20%20if%20(cache%20!%3D%20null)%20%7B%0A%20%20%20%20%20%20cache.trackResponse(strategy)%3B%0A%20%20%20%20%7D%0A%0A%20%20%20%20%2F%2F%E5%A6%82%E6%9E%9C%E5%BD%93%E5%89%8D%E7%9A%84%E7%BC%93%E5%AD%98%E4%B8%8D%E5%8F%AF%E7%94%A8%EF%BC%8C%E5%85%B3%E6%8E%89%E5%AE%83%0A%20%20%20%20if%20(cacheCandidate%20!%3D%20null%20%26%26%20cacheResponse%20%3D%3D%20null)%20%7B%0A%20%20%20%20%20%20closeQuietly(cacheCandidate.body())%3B%20%2F%2F%20The%20cache%20candidate%20wasn't%20applicable.%20Close%20it.%0A%20%20%20%20%7D%0A%0A%20%20%20%20%2F%2F%20%E5%A6%82%E6%9E%9C%E7%BD%91%E7%BB%9C%E8%AF%B7%E6%B1%82%E4%B8%8D%E8%83%BD%E7%94%A8%EF%BC%8C%E5%B9%B6%E4%B8%94%E6%B2%A1%E6%9C%89%E5%8F%AF%E7%94%A8%E7%BC%93%E5%AD%98%EF%BC%8C%E7%9B%B4%E6%8E%A5%E8%BF%94%E5%9B%9E504%0A%20%20%20%20if%20(networkRequest%20%3D%3D%20null%20%26%26%20cacheResponse%20%3D%3D%20null)%20%7B%0A%20%20%20%20%20%20return%20new%20Response.Builder()%0A%20%20%20%20%20%20%20%20%20%20.request(chain.request())%0A%20%20%20%20%20%20%20%20%20%20.protocol(Protocol.HTTP_1_1)%0A%20%20%20%20%20%20%20%20%20%20.code(504)%0A%20%20%20%20%20%20%20%20%20%20.message(%22Unsatisfiable%20Request%20(only-if-cached)%22)%0A%20%20%20%20%20%20%20%20%20%20.body(Util.EMPTY_RESPONSE)%0A%20%20%20%20%20%20%20%20%20%20.sentRequestAtMillis(-1L)%0A%20%20%20%20%20%20%20%20%20%20.receivedResponseAtMillis(System.currentTimeMillis())%0A%20%20%20%20%20%20%20%20%20%20.build()%3B%0A%20%20%20%20%7D%0A%0A%20%20%20%20%2F%2F%20%E5%A6%82%E6%9E%9C%E7%BD%91%E7%BB%9C%E8%AF%B7%E6%B1%82%E4%B8%8D%E8%83%BD%E7%94%A8%EF%BC%8C%E7%9B%B4%E6%8E%A5%E8%BF%94%E5%9B%9E%E5%8F%AF%E7%94%A8%E7%BC%93%E5%AD%98%0A%20%20%20%20if%20(networkRequest%20%3D%3D%20null)%20%7B%0A%20%20%20%20%20%20return%20cacheResponse.newBuilder()%0A%20%20%20%20%20%20%20%20%20%20.cacheResponse(stripBody(cacheResponse))%0A%20%20%20%20%20%20%20%20%20%20.build()%3B%0A%20%20%20%20%7D%0A%0A%20%20%20%20%2F%2F%E4%B8%8E%E6%9C%8D%E5%8A%A1%E5%99%A8%E8%BF%9B%E8%A1%8C%E9%80%9A%E4%BF%A1%EF%BC%8C%E8%8E%B7%E5%BE%97%E6%9C%8D%E5%8A%A1%E5%99%A8%E5%9B%9E%E5%BA%94%0A%20%20%20%20Response%20networkResponse%20%3D%20null%3B%0A%20%20%20%20try%20%7B%0A%20%20%20%20%20%20networkResponse%20%3D%20chain.proceed(networkRequest)%3B%0A%20%20%20%20%7D%20finally%20%7B%0A%20%20%20%20%20%20%2F%2F%20If%20we're%20crashing%20on%20I%2FO%20or%20otherwise%2C%20don't%20leak%20the%20cache%20body.%0A%20%20%20%20%20%20if%20(networkResponse%20%3D%3D%20null%20%26%26%20cacheCandidate%20!%3D%20null)%20%7B%0A%20%20%20%20%20%20%20%20closeQuietly(cacheCandidate.body())%3B%0A%20%20%20%20%20%20%7D%0A%20%20%20%20%7D%0A%0A%20%20%20%20%2F%2F%20%E7%BC%93%E5%AD%98%E4%B8%8D%E4%B8%BA%E7%A9%BA%EF%BC%8C%E8%AF%B4%E6%98%8E%E7%9B%AE%E5%89%8D%E5%9C%A8%E5%81%9A%E6%9C%89%E6%9D%A1%E4%BB%B6%E7%9A%84%E8%AF%B7%E6%B1%82%0A%20%20%20%20if%20(cacheResponse%20!%3D%20null)%20%7B%0A%20%20%20%20%20%20%20%20%2F%2F%E6%9C%8D%E5%8A%A1%E5%99%A8%E8%AF%B4%E7%BC%93%E5%AD%98%E8%BF%98%E5%8F%AF%E4%BB%A5%E7%94%A8%EF%BC%8C%E7%9B%B4%E6%8E%A5%E5%B0%86%E7%BD%91%E7%BB%9C%E5%93%8D%E5%BA%94%E5%92%8C%E7%BC%93%E5%AD%98%E7%BB%93%E5%90%88%E8%B5%B7%E6%9D%A5%E8%BF%94%E5%9B%9E%0A%20%20%20%20%20%20if%20(networkResponse.code()%20%3D%3D%20HTTP_NOT_MODIFIED)%20%7B%0A%20%20%20%20%20%20%20%20Response%20response%20%3D%20cacheResponse.newBuilder()%0A%20%20%20%20%20%20%20%20%20%20%20%20.headers(combine(cacheResponse.headers()%2C%20networkResponse.headers()))%0A%20%20%20%20%20%20%20%20%20%20%20%20.sentRequestAtMillis(networkResponse.sentRequestAtMillis())%0A%20%20%20%20%20%20%20%20%20%20%20%20.receivedResponseAtMillis(networkResponse.receivedResponseAtMillis())%0A%20%20%20%20%20%20%20%20%20%20%20%20.cacheResponse(stripBody(cacheResponse))%0A%20%20%20%20%20%20%20%20%20%20%20%20.networkResponse(stripBody(networkResponse))%0A%20%20%20%20%20%20%20%20%20%20%20%20.build()%3B%0A%20%20%20%20%20%20%20%20networkResponse.body().close()%3B%0A%0A%20%20%20%20%20%20%20%20%2F%2F%20Update%20the%20cache%20after%20combining%20headers%20but%20before%20stripping%20the%0A%20%20%20%20%20%20%20%20%2F%2F%20Content-Encoding%20header%20(as%20performed%20by%20initContentStream()).%0A%20%20%20%20%20%20%20%20cache.trackConditionalCacheHit()%3B%0A%20%20%20%20%20%20%20%20cache.update(cacheResponse%2C%20response)%3B%0A%20%20%20%20%20%20%20%20return%20response%3B%0A%20%20%20%20%20%20%7D%20else%20%7B%0A%20%20%20%20%20%20%20%20%2F%2F%E7%BC%93%E5%AD%98%E8%BF%87%E6%9C%9F%E4%B8%8D%E8%83%BD%E7%94%A8%E4%BA%86%EF%BC%8C%E5%85%B3%E9%97%AD%E5%AE%83%0A%20%20%20%20%20%20%20%20closeQuietly(cacheResponse.body())%3B%0A%20%20%20%20%20%20%7D%0A%20%20%20%20%7D%0A%20%20%20%20%0A%20%20%20%20%2F%2F%E4%BB%A5%E4%B8%8B%E6%98%AF%E7%BC%93%E5%AD%98%E4%B8%BA%E7%A9%BA%E7%9A%84%E6%83%85%E5%86%B5%0A%20%20%20%20%2F%2F%E6%95%B4%E5%90%88%E5%93%8D%E5%BA%94%E6%95%B4%E5%90%88%0A%20%20%20%20Response%20response%20%3D%20networkResponse.newBuilder()%0A%20%20%20%20%20%20%20%20.cacheResponse(stripBody(cacheResponse))%0A%20%20%20%20%20%20%20%20.networkResponse(stripBody(networkResponse))%0A%20%20%20%20%20%20%20%20.build()%3B%0A%0A%20%20%20%20%2F%2F%E5%A6%82%E6%9E%9C%E7%BC%93%E5%AD%98%E9%9B%86%E4%B8%8D%E4%B8%BA%E7%A9%BA%0A%20%20%20%20if%20(cache%20!%3D%20null)%20%7B%0A%20%20%20%20%20%20%20%20%2F%2F%E5%8F%AF%E4%BB%A5%E7%BC%93%E5%AD%98%EF%BC%8C%E5%B0%86%E7%BD%91%E7%BB%9C%E5%93%8D%E5%BA%94%E4%BA%A4%E7%BB%99%E7%BC%93%E5%AD%98%EF%BC%8C%E7%84%B6%E5%90%8E%E8%BF%94%E5%9B%9E%E5%93%8D%E5%BA%94%0A%20%20%20%20%20%20if%20(HttpHeaders.hasBody(response)%20%26%26%20CacheStrategy.isCacheable(response%2C%20networkRequest))%20%7B%0A%20%20%20%20%20%20%20%20%2F%2F%20Offer%20this%20request%20to%20the%20cache.%0A%20%20%20%20%20%20%20%20CacheRequest%20cacheRequest%20%3D%20cache.put(response)%3B%0A%20%20%20%20%20%20%20%20return%20cacheWritingResponse(cacheRequest%2C%20response)%3B%0A%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%0A%20%20%20%20%20%20%2F%2F%E4%B8%8D%E7%BC%93%E5%AD%98%EF%BC%8C%E7%9B%B4%E6%8E%A5%E5%8E%BB%E6%8E%89%E7%BC%93%E5%AD%98%0A%20%20%20%20%20%20if%20(HttpMethod.invalidatesCache(networkRequest.method()))%20%7B%0A%20%20%20%20%20%20%20%20try%20%7B%0A%20%20%20%20%20%20%20%20%20%20cache.remove(networkRequest)%3B%0A%20%20%20%20%20%20%20%20%7D%20catch%20(IOException%20ignored)%20%7B%0A%20%20%20%20%20%20%20%20%20%20%2F%2F%20The%20cache%20cannot%20be%20written.%0A%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%7D%0A%20%20%20%20%7D%0A%20%20%20%20%0A%20%20%20%20%2F%2F%E8%BF%94%E5%9B%9E%E7%BD%91%E7%BB%9C%E5%93%8D%E5%BA%94%0A%20%20%20%20return%20response%3B%0A%20%20%7D%0A%60%60%60%0A%0A%0ACacheStrategy.Factory(now%2C%20chain.request()%2C%20cacheCandidate).get()%3B%0A%60%60%60%0Aprivate%20CacheStrategy%20getCandidate()%20%7B%0A%20%20%20%20%20%20%2F%2F%20%E8%8B%A5%E6%9C%AC%E5%9C%B0%E6%B2%A1%E6%9C%89%E7%BC%93%E5%AD%98%EF%BC%8C%E5%8F%91%E8%B5%B7%E7%BD%91%E7%BB%9C%E8%AF%B7%E6%B1%82%0A%20%20%20%20%20%20if%20(cacheResponse%20%3D%3D%20null)%20%7B%0A%20%20%20%20%20%20%20%20return%20new%20CacheStrategy(request%2C%20null)%3B%0A%20%20%20%20%20%20%7D%0A%0A%20%20%20%20%20%20%2F%2F%20%E5%A6%82%E6%9E%9C%E5%BD%93%E5%89%8D%E8%AF%B7%E6%B1%82%E6%98%AFHTTPS%EF%BC%8C%E8%80%8C%E7%BC%93%E5%AD%98%E6%B2%A1%E6%9C%89TLS%E6%8F%A1%E6%89%8B%EF%BC%8C%E9%87%8D%E6%96%B0%E5%8F%91%E8%B5%B7%E7%BD%91%E7%BB%9C%E8%AF%B7%E6%B1%82%0A%20%20%20%20%20%20if%20(request.isHttps()%20%26%26%20cacheResponse.handshake()%20%3D%3D%20null)%20%7B%0A%20%20%20%20%20%20%20%20return%20new%20CacheStrategy(request%2C%20null)%3B%0A%20%20%20%20%20%20%7D%0A%0A%20%20%20%20%20%20%2F%2F%20%E5%A6%82%E6%9E%9C%E4%B8%8D%E8%83%BD%E4%BD%BF%E7%94%A8%E7%BC%93%E5%AD%98%0A%20%20%20%20%20%20if%20(!isCacheable(cacheResponse%2C%20request))%20%7B%0A%20%20%20%20%20%20%20%20return%20new%20CacheStrategy(request%2C%20null)%3B%0A%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20%0A%20%0A%20%20%20%20%20%20%2F%2F%E5%A6%82%E6%9E%9C%E5%BD%93%E5%89%8D%E7%9A%84%E7%BC%93%E5%AD%98%E7%AD%96%E7%95%A5%E6%98%AF%E4%B8%8D%E7%BC%93%E5%AD%98%E6%88%96%E8%80%85%E6%98%AFconditional%20get%EF%BC%8C%E5%8F%91%E8%B5%B7%E7%BD%91%E7%BB%9C%E8%AF%B7%E6%B1%82%0A%20%20%20%20%20%20CacheControl%20requestCaching%20%3D%20request.cacheControl()%3B%0A%20%20%20%20%20%20if%20(requestCaching.noCache()%20%7C%7C%20hasConditions(request))%20%7B%0A%20%20%20%20%20%20%20%20return%20new%20CacheStrategy(request%2C%20null)%3B%0A%20%20%20%20%20%20%7D%0A%0A%20%20%20%20%20%20long%20ageMillis%20%3D%20cacheResponseAge()%3B%0A%0A%20%20%20%20%20%20long%20freshMillis%20%3D%20computeFreshnessLifetime()%3B%0A%0A%20%20%20%20%20%20if%20(requestCaching.maxAgeSeconds()%20!%3D%20-1)%20%7B%0A%20%20%20%20%20%20%20%20freshMillis%20%3D%20Math.min(freshMillis%2C%20SECONDS.toMillis(requestCaching.maxAgeSeconds()))%3B%0A%20%20%20%20%20%20%7D%0A%0A%20%20%20%20%20%20long%20minFreshMillis%20%3D%200%3B%0A%20%20%20%20%20%20if%20(requestCaching.minFreshSeconds()%20!%3D%20-1)%20%7B%0A%20%20%20%20%20%20%20%20minFreshMillis%20%3D%20SECONDS.toMillis(requestCaching.minFreshSeconds())%3B%0A%20%20%20%20%20%20%7D%0A%0A%20%20%20%20%20%20long%20maxStaleMillis%20%3D%200%3B%0A%20%20%20%20%20%20CacheControl%20responseCaching%20%3D%20cacheResponse.cacheControl()%3B%0A%20%20%20%20%20%20if%20(!responseCaching.mustRevalidate()%20%26%26%20requestCaching.maxStaleSeconds()%20!%3D%20-1)%20%7B%0A%20%20%20%20%20%20%20%20maxStaleMillis%20%3D%20SECONDS.toMillis(requestCaching.maxStaleSeconds())%3B%0A%20%20%20%20%20%20%7D%0A%0A%0A%20%20%20%20%20%20if%20(!responseCaching.noCache()%20%26%26%20ageMillis%20%2B%20minFreshMillis%20%3C%20freshMillis%20%2B%20maxStaleMillis)%20%20%20%20%20%20%20%20%20%7B%0A%20%20%20%20%20%20%20%20Response.Builder%20builder%20%3D%20cacheResponse.newBuilder()%3B%0A%20%20%20%20%20%20%20%20if%20(ageMillis%20%2B%20minFreshMillis%20%3E%3D%20freshMillis)%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20%2F%2F%E7%BC%93%E5%AD%98%E4%BB%A5%E8%BF%87%E6%9C%9F%EF%BC%8C%E4%BD%86%E5%8F%AF%E4%BB%A5%E7%94%A8%EF%BC%8C%E6%B7%BB%E5%8A%A0110%E8%AD%A6%E5%91%8A%E7%A0%81%0A%20%20%20%20%20%20%20%20%20%20builder.addHeader(%22Warning%22%2C%20%22110%20HttpURLConnection%20%5C%22Response%20is%20stale%5C%22%22)%3B%0A%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20long%20oneDayMillis%20%3D%2024%20*%2060%20*%2060%20*%201000L%3B%0A%20%20%20%20%20%20%20%20if%20(ageMillis%20%3E%20oneDayMillis%20%26%26%20isFreshnessLifetimeHeuristic())%20%7B%0A%20%20%20%20%20%20%20%20%20%20builder.addHeader(%22Warning%22%2C%20%22113%20HttpURLConnection%20%5C%22Heuristic%20expiration%5C%22%22)%3B%0A%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20return%20new%20CacheStrategy(null%2C%20builder.build())%3B%0A%20%20%20%20%20%20%7D%0A%0A%20%20%20%20%20%20%2F%2F%20%E5%8F%91%E8%B5%B7conditional%20get%E8%AF%B7%E6%B1%82%0A%20%20%20%20%20%20String%20conditionName%3B%0A%20%20%20%20%20%20String%20conditionValue%3B%0A%20%20%20%20%20%20if%20(etag%20!%3D%20null)%20%7B%0A%20%20%20%20%20%20%20%20conditionName%20%3D%20%22If-None-Match%22%3B%0A%20%20%20%20%20%20%20%20conditionValue%20%3D%20etag%3B%0A%20%20%20%20%20%20%7D%20else%20if%20(lastModified%20!%3D%20null)%20%7B%0A%20%20%20%20%20%20%20%20conditionName%20%3D%20%22If-Modified-Since%22%3B%0A%20%20%20%20%20%20%20%20conditionValue%20%3D%20lastModifiedString%3B%0A%20%20%20%20%20%20%7D%20else%20if%20(servedDate%20!%3D%20null)%20%7B%0A%20%20%20%20%20%20%20%20conditionName%20%3D%20%22If-Modified-Since%22%3B%0A%20%20%20%20%20%20%20%20conditionValue%20%3D%20servedDateString%3B%0A%20%20%20%20%20%20%7D%20else%20%7B%0A%20%20%20%20%20%20%20%20return%20new%20CacheStrategy(request%2C%20null)%3B%20%0A%20%20%20%20%20%20%7D%0A%0A%20%20%20%20%20%20Headers.Builder%20conditionalRequestHeaders%20%3D%20request.headers().newBuilder()%3B%0A%20%20%20%20%20%20Internal.instance.addLenient(conditionalRequestHeaders%2C%20conditionName%2C%20conditionValue)%3B%0A%0A%20%20%20%20%20%20Request%20conditionalRequest%20%3D%20request.newBuilder()%0A%20%20%20%20%20%20%20%20%20%20.headers(conditionalRequestHeaders.build())%0A%20%20%20%20%20%20%20%20%20%20.build()%3B%0A%20%20%20%20%20%20return%20new%20CacheStrategy(conditionalRequest%2C%20cacheResponse)%3B%0A%20%20%20%20%7D%0A%60%60%60%0A%0A%0A****%0ACache%E7%9A%84%E7%BC%93%E5%AD%98%E7%AD%96%E7%95%A5DislruCache%0ADislruCache%E9%80%9A%E8%BF%87%E7%BC%93%E5%AD%98%E7%9A%84requestCount(%E8%AF%B7%E6%B1%82%E6%95%B0)%EF%BC%8CnetworkCount(%E5%9B%9E%E5%BA%94%E6%95%B0)%EF%BC%8ChitCount(%E5%87%BB%E4%B8%AD%E6%95%B0)%E6%9D%A5%E4%BC%98%E5%8C%96%E7%BC%93%E5%AD%98%E6%95%88%E7%8E%87%0A%0A**DisLruCache.Entry**%0A%E4%B8%80%E4%B8%AADisLruCache.Entry%E5%AF%B9%E5%BA%94%E4%B8%80%E4%B8%AA%E7%BC%93%E5%AD%98%E5%AE%9E%E4%BD%93%EF%BC%8C%E5%AE%83%E7%9A%84%E7%BB%84%E6%88%90%EF%BC%9A%0A*%20key%EF%BC%8C%E8%AF%B7%E6%B1%82URL%E7%9A%84MD-5%E5%AD%97%E7%AC%A6%E4%B8%B2%EF%BC%8C%E6%A0%87%E8%AF%86%E7%AC%A6%0A*%20cleanFiles%2FdirtyFiles%20%EF%BC%8CokHttp%E4%B8%AD%EF%BC%8C%E6%AF%8F%E4%B8%AAentry%E5%8C%85%E5%90%AB%E4%B8%A4%E4%B8%AAcleanFiles%2FdirtyFiles%2C%E5%85%B6%E4%B8%AD%E7%AC%AC%E4%B8%80%E4%B8%AA%E7%94%A8%E6%9D%A5%E8%AE%B0%E5%BD%95cache%E7%9A%84meta%E8%AE%B0%E5%BD%95%EF%BC%88URL%2C%E6%8F%A1%E6%89%8B%E8%AE%B0%E5%BD%95%EF%BC%8CSSL%E6%8F%A1%E6%89%8B%E8%AE%B0%E5%BD%95%EF%BC%8C%E5%88%9B%E5%BB%BA%E6%97%B6%E9%97%B4%E3%80%82%E3%80%82%EF%BC%89%EF%BC%8C%E7%AC%AC%E4%BA%8C%E4%B8%AA%E7%94%A8%E6%9D%A5%E8%AE%B0%E5%BD%95%E7%9C%9F%E6%AD%A3%E7%9A%84cache%E8%AE%B0%E5%BD%95%EF%BC%8CcleanFiles%E7%94%A8%E6%9D%A5%E8%AE%B0%E5%BD%95%E7%A8%B3%E5%AE%9A%E7%8A%B6%E6%80%81%E7%9A%84cache%EF%BC%8CdirtyFiles%E7%94%A8%E6%9D%A5%E8%AE%B0%E5%BD%95%E4%BF%AE%E6%94%B9%E6%88%96%E5%88%9B%E5%BB%BA%E7%8A%B6%E6%80%81%E7%9A%84cache</center></body></html>

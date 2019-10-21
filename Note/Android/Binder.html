@@ -1,0 +1,246 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/><meta name="exporter-version" content="Evernote Mac 9.2.0 (458672)"/><meta name="author" content="林"/><meta name="created" content="2019-10-20 06:11:05 +0000"/><meta name="source" content="desktop.mac"/><meta name="updated" content="2019-10-20 06:45:49 +0000"/><meta name="content-class" content="yinxiang.markdown"/><title>Binder</title></head><body><div style="font-size: 14px; margin: 0; padding: 0; width: 100%;"><h3 style="line-height: 160%; box-sizing: content-box; font-weight: 700; font-size: 27px; color: #333;">什么是Binder</h3>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">Binder 是Android中继承IBinder接口的一个类，从IPC角度来说，Binder是Android中跨进程通信中的一种方式。<br/>
+从应用层来说，Binder是服务端与客户端进行通信的一种媒介。</p>
+<h3 style="line-height: 160%; box-sizing: content-box; font-weight: 700; font-size: 27px; color: #333;">Binder的解析</h3>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">新建一个类和两个aidl文件</p>
+<hr style="line-height: 160%; box-sizing: content-box; border-top: 1px solid #eee; margin: 16px 0;"/>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">User.java<br/>
+这是一个用户类，需要实现parcelable接口</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">public class User implements Parcelable {
+    String id;
+    String name;
+
+    private User(Parcel in) {
+        id = in.readString();
+        name = in.readString();
+    }
+
+    public static final Creator&lt;User&gt; CREATOR = new Creator&lt;User&gt;() {
+        @Override
+        public User createFromParcel(Parcel in) {
+            return new User(in);
+        }
+
+        @Override
+        public User[] newArray(int size) {
+            return new User[size];
+        }
+    };
+
+    @Override
+    public int describeContents() {
+        return 0;
+    }
+
+    @Override
+    public void writeToParcel(Parcel dest, int flags) {
+        dest.writeString(id);
+        dest.writeString(name);
+    }
+}
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">User.aidl<br/>
+User.java在aidl中的声明，需要同名</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">package com.example.myipc.maidl;
+
+// Declare any non-default types here with import statements
+
+parcelable User;
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">IUserManager.aidl<br/>
+定义了一个接口，里面声明了需要用到的方法<br/>
+并且在aidl中除了java中的基本类型，其他自定义类型都需要导包</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">// IUserManager.aidl
+package com.example.myipc.maidl;
+import com.example.myipc.maidl.User;
+
+// Declare any non-default types here with import statements
+
+interface IUserManager {
+    List&lt;User&gt; getUser();
+    void addUser(in User user);
+}
+</code></pre>
+<h4 style="line-height: 160%; box-sizing: content-box; font-size: 20px; color: #333;">系统自动生成的aidl源码解析</h4>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">内容在源码中的gen目录中</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">/*
+ * This file is auto-generated.  DO NOT MODIFY.
+ */
+package com.example.myipc.maidl;
+// Declare any non-default types here with import statements
+
+public interface IUserManager extends android.os.IInterface
+{
+  /** Default implementation for IUserManager. */
+  public static class Default implements com.example.myipc.maidl.IUserManager
+  {
+    @Override public java.util.List&lt;com.example.myipc.maidl.User&gt; getUser() throws android.os.RemoteException
+    {
+      return null;
+    }
+    @Override public void addUser(com.example.myipc.maidl.User user) throws android.os.RemoteException
+    {
+    }
+    @Override
+    public android.os.IBinder asBinder() {
+      return null;
+    }
+  }
+  /** Local-side IPC implementation stub class. */
+  public static abstract class Stub extends android.os.Binder implements com.example.myipc.maidl.IUserManager
+  {
+    private static final java.lang.String DESCRIPTOR = "com.example.myipc.maidl.IUserManager";
+    /** Construct the stub at attach it to the interface. */
+    public Stub()
+    {
+      this.attachInterface(this, DESCRIPTOR);
+    }
+    /**
+     * Cast an IBinder object into an com.example.myipc.maidl.IUserManager interface,
+     * generating a proxy if needed.
+     */
+    public static com.example.myipc.maidl.IUserManager asInterface(android.os.IBinder obj)
+    {
+      if ((obj==null)) {
+        return null;
+      }
+      android.os.IInterface iin = obj.queryLocalInterface(DESCRIPTOR);
+      if (((iin!=null)&amp;&amp;(iin instanceof com.example.myipc.maidl.IUserManager))) {
+        return ((com.example.myipc.maidl.IUserManager)iin);
+      }
+      return new com.example.myipc.maidl.IUserManager.Stub.Proxy(obj);
+    }
+    @Override public android.os.IBinder asBinder()
+    {
+      return this;
+    }
+    @Override public boolean onTransact(int code, android.os.Parcel data, android.os.Parcel reply, int flags) throws android.os.RemoteException
+    {
+      java.lang.String descriptor = DESCRIPTOR;
+      switch (code)
+      {
+        case INTERFACE_TRANSACTION:
+        {
+          reply.writeString(descriptor);
+          return true;
+        }
+        case TRANSACTION_getUser:
+        {
+          data.enforceInterface(descriptor);
+          java.util.List&lt;com.example.myipc.maidl.User&gt; _result = this.getUser();
+          reply.writeNoException();
+          reply.writeTypedList(_result);
+          return true;
+        }
+        case TRANSACTION_addUser:
+        {
+          data.enforceInterface(descriptor);
+          com.example.myipc.maidl.User _arg0;
+          if ((0!=data.readInt())) {
+            _arg0 = com.example.myipc.maidl.User.CREATOR.createFromParcel(data);
+          }
+          else {
+            _arg0 = null;
+          }
+          this.addUser(_arg0);
+          reply.writeNoException();
+          return true;
+        }
+        default:
+        {
+          return super.onTransact(code, data, reply, flags);
+        }
+      }
+    }
+    private static class Proxy implements com.example.myipc.maidl.IUserManager
+    {
+      private android.os.IBinder mRemote;
+      Proxy(android.os.IBinder remote)
+      {
+        mRemote = remote;
+      }
+      @Override public android.os.IBinder asBinder()
+      {
+        return mRemote;
+      }
+      public java.lang.String getInterfaceDescriptor()
+      {
+        return DESCRIPTOR;
+      }
+      @Override public java.util.List&lt;com.example.myipc.maidl.User&gt; getUser() throws android.os.RemoteException
+      {
+        android.os.Parcel _data = android.os.Parcel.obtain();
+        android.os.Parcel _reply = android.os.Parcel.obtain();
+        java.util.List&lt;com.example.myipc.maidl.User&gt; _result;
+        try {
+          _data.writeInterfaceToken(DESCRIPTOR);
+          boolean _status = mRemote.transact(Stub.TRANSACTION_getUser, _data, _reply, 0);
+          if (!_status &amp;&amp; getDefaultImpl() != null) {
+            return getDefaultImpl().getUser();
+          }
+          _reply.readException();
+          _result = _reply.createTypedArrayList(com.example.myipc.maidl.User.CREATOR);
+        }
+        finally {
+          _reply.recycle();
+          _data.recycle();
+        }
+        return _result;
+      }
+      @Override public void addUser(com.example.myipc.maidl.User user) throws android.os.RemoteException
+      {
+        android.os.Parcel _data = android.os.Parcel.obtain();
+        android.os.Parcel _reply = android.os.Parcel.obtain();
+        try {
+          _data.writeInterfaceToken(DESCRIPTOR);
+          if ((user!=null)) {
+            _data.writeInt(1);
+            user.writeToParcel(_data, 0);
+          }
+          else {
+            _data.writeInt(0);
+          }
+          boolean _status = mRemote.transact(Stub.TRANSACTION_addUser, _data, _reply, 0);
+          if (!_status &amp;&amp; getDefaultImpl() != null) {
+            getDefaultImpl().addUser(user);
+            return;
+          }
+          _reply.readException();
+        }
+        finally {
+          _reply.recycle();
+          _data.recycle();
+        }
+      }
+      public static com.example.myipc.maidl.IUserManager sDefaultImpl;
+    }
+    static final int TRANSACTION_getUser = (android.os.IBinder.FIRST_CALL_TRANSACTION + 0);
+    static final int TRANSACTION_addUser = (android.os.IBinder.FIRST_CALL_TRANSACTION + 1);
+    public static boolean setDefaultImpl(com.example.myipc.maidl.IUserManager impl) {
+      if (Stub.Proxy.sDefaultImpl == null &amp;&amp; impl != null) {
+        Stub.Proxy.sDefaultImpl = impl;
+        return true;
+      }
+      return false;
+    }
+    public static com.example.myipc.maidl.IUserManager getDefaultImpl() {
+      return Stub.Proxy.sDefaultImpl;
+    }
+  }
+  public java.util.List&lt;com.example.myipc.maidl.User&gt; getUser() throws android.os.RemoteException;
+  public void addUser(com.example.myipc.maidl.User user) throws android.os.RemoteException;
+}
+
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">从源码我们可以知道他们都继承于IInterface接口，并且是Binder类</p>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">主要内容都在Stub这个类中，它还包含了一个Proxy静态内部类</p>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">DESCRIPTOR：Binder的唯一标识符</p>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">asInterface():将服务端端Binder对象转换为客户端所需要的AIDL接口类型对象，如果客户端和服务在同一进程就返回Stub对象，否则就返回Stub.Proxy对象。</p>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">boolean onTransact(int code, Parcel data, Parcel reply, int flags):<br/>
+当客户端发起跨进程请求时，远程请求就会经过系统封装交给这个方法处理，其中code代表是哪个方法<br/>
+data代表请求参数，reply代表响应参数，当远程过程调用结束后就会将结果写入reply中。如果方法返回false，代表调用失败。</p>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">Proxy#List&lt;User&gt; getUser()/void addUser(User user):<br/>
+它的调用过程：客户端远程调用此方法，首先创建输入型Parcel对象_data,输出型Parcel对象_reply，以及需要返回的对象类型，首先把需要的参数放入_data中，然后调用transact()方法，线程挂起，远程过程调用返回后从reply中取出返回数据，最后将数据返回。</p>
+</div><center style="display:none !important;visibility:collapse !important;height:0 !important;white-space:nowrap;width:100%;overflow:hidden">%23%23%23%20%E4%BB%80%E4%B9%88%E6%98%AFBinder%0ABinder%20%E6%98%AFAndroid%E4%B8%AD%E7%BB%A7%E6%89%BFIBinder%E6%8E%A5%E5%8F%A3%E7%9A%84%E4%B8%80%E4%B8%AA%E7%B1%BB%EF%BC%8C%E4%BB%8EIPC%E8%A7%92%E5%BA%A6%E6%9D%A5%E8%AF%B4%EF%BC%8CBinder%E6%98%AFAndroid%E4%B8%AD%E8%B7%A8%E8%BF%9B%E7%A8%8B%E9%80%9A%E4%BF%A1%E4%B8%AD%E7%9A%84%E4%B8%80%E7%A7%8D%E6%96%B9%E5%BC%8F%E3%80%82%0A%E4%BB%8E%E5%BA%94%E7%94%A8%E5%B1%82%E6%9D%A5%E8%AF%B4%EF%BC%8CBinder%E6%98%AF%E6%9C%8D%E5%8A%A1%E7%AB%AF%E4%B8%8E%E5%AE%A2%E6%88%B7%E7%AB%AF%E8%BF%9B%E8%A1%8C%E9%80%9A%E4%BF%A1%E7%9A%84%E4%B8%80%E7%A7%8D%E5%AA%92%E4%BB%8B%E3%80%82%0A%0A%23%23%23%20Binder%E7%9A%84%E8%A7%A3%E6%9E%90%0A%E6%96%B0%E5%BB%BA%E4%B8%80%E4%B8%AA%E7%B1%BB%E5%92%8C%E4%B8%A4%E4%B8%AAaidl%E6%96%87%E4%BB%B6%0A****%0AUser.java%0A%E8%BF%99%E6%98%AF%E4%B8%80%E4%B8%AA%E7%94%A8%E6%88%B7%E7%B1%BB%EF%BC%8C%E9%9C%80%E8%A6%81%E5%AE%9E%E7%8E%B0parcelable%E6%8E%A5%E5%8F%A3%0A%60%60%60%0Apublic%20class%20User%20implements%20Parcelable%20%7B%0A%20%20%20%20String%20id%3B%0A%20%20%20%20String%20name%3B%0A%0A%20%20%20%20private%20User(Parcel%20in)%20%7B%0A%20%20%20%20%20%20%20%20id%20%3D%20in.readString()%3B%0A%20%20%20%20%20%20%20%20name%20%3D%20in.readString()%3B%0A%20%20%20%20%7D%0A%0A%20%20%20%20public%20static%20final%20Creator%3CUser%3E%20CREATOR%20%3D%20new%20Creator%3CUser%3E()%20%7B%0A%20%20%20%20%20%20%20%20%40Override%0A%20%20%20%20%20%20%20%20public%20User%20createFromParcel(Parcel%20in)%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20return%20new%20User(in)%3B%0A%20%20%20%20%20%20%20%20%7D%0A%0A%20%20%20%20%20%20%20%20%40Override%0A%20%20%20%20%20%20%20%20public%20User%5B%5D%20newArray(int%20size)%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20return%20new%20User%5Bsize%5D%3B%0A%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%7D%3B%0A%0A%20%20%20%20%40Override%0A%20%20%20%20public%20int%20describeContents()%20%7B%0A%20%20%20%20%20%20%20%20return%200%3B%0A%20%20%20%20%7D%0A%0A%20%20%20%20%40Override%0A%20%20%20%20public%20void%20writeToParcel(Parcel%20dest%2C%20int%20flags)%20%7B%0A%20%20%20%20%20%20%20%20dest.writeString(id)%3B%0A%20%20%20%20%20%20%20%20dest.writeString(name)%3B%0A%20%20%20%20%7D%0A%7D%0A%60%60%60%0A%0AUser.aidl%0AUser.java%E5%9C%A8aidl%E4%B8%AD%E7%9A%84%E5%A3%B0%E6%98%8E%EF%BC%8C%E9%9C%80%E8%A6%81%E5%90%8C%E5%90%8D%0A%60%60%60%0Apackage%20com.example.myipc.maidl%3B%0A%0A%2F%2F%20Declare%20any%20non-default%20types%20here%20with%20import%20statements%0A%0Aparcelable%20User%3B%0A%60%60%60%0A%0AIUserManager.aidl%0A%E5%AE%9A%E4%B9%89%E4%BA%86%E4%B8%80%E4%B8%AA%E6%8E%A5%E5%8F%A3%EF%BC%8C%E9%87%8C%E9%9D%A2%E5%A3%B0%E6%98%8E%E4%BA%86%E9%9C%80%E8%A6%81%E7%94%A8%E5%88%B0%E7%9A%84%E6%96%B9%E6%B3%95%0A%E5%B9%B6%E4%B8%94%E5%9C%A8aidl%E4%B8%AD%E9%99%A4%E4%BA%86java%E4%B8%AD%E7%9A%84%E5%9F%BA%E6%9C%AC%E7%B1%BB%E5%9E%8B%EF%BC%8C%E5%85%B6%E4%BB%96%E8%87%AA%E5%AE%9A%E4%B9%89%E7%B1%BB%E5%9E%8B%E9%83%BD%E9%9C%80%E8%A6%81%E5%AF%BC%E5%8C%85%0A%60%60%60%0A%2F%2F%20IUserManager.aidl%0Apackage%20com.example.myipc.maidl%3B%0Aimport%20com.example.myipc.maidl.User%3B%0A%0A%2F%2F%20Declare%20any%20non-default%20types%20here%20with%20import%20statements%0A%0Ainterface%20IUserManager%20%7B%0A%20%20%20%20List%3CUser%3E%20getUser()%3B%0A%20%20%20%20void%20addUser(in%20User%20user)%3B%0A%7D%0A%60%60%60%0A%0A%23%23%23%23%20%E7%B3%BB%E7%BB%9F%E8%87%AA%E5%8A%A8%E7%94%9F%E6%88%90%E7%9A%84aidl%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90%0A%E5%86%85%E5%AE%B9%E5%9C%A8%E6%BA%90%E7%A0%81%E4%B8%AD%E7%9A%84gen%E7%9B%AE%E5%BD%95%E4%B8%AD%0A%60%60%60%0A%2F*%0A%20*%20This%20file%20is%20auto-generated.%20%20DO%20NOT%20MODIFY.%0A%20*%2F%0Apackage%20com.example.myipc.maidl%3B%0A%2F%2F%20Declare%20any%20non-default%20types%20here%20with%20import%20statements%0A%0Apublic%20interface%20IUserManager%20extends%20android.os.IInterface%0A%7B%0A%20%20%2F**%20Default%20implementation%20for%20IUserManager.%20*%2F%0A%20%20public%20static%20class%20Default%20implements%20com.example.myipc.maidl.IUserManager%0A%20%20%7B%0A%20%20%20%20%40Override%20public%20java.util.List%3Ccom.example.myipc.maidl.User%3E%20getUser()%20throws%20android.os.RemoteException%0A%20%20%20%20%7B%0A%20%20%20%20%20%20return%20null%3B%0A%20%20%20%20%7D%0A%20%20%20%20%40Override%20public%20void%20addUser(com.example.myipc.maidl.User%20user)%20throws%20android.os.RemoteException%0A%20%20%20%20%7B%0A%20%20%20%20%7D%0A%20%20%20%20%40Override%0A%20%20%20%20public%20android.os.IBinder%20asBinder()%20%7B%0A%20%20%20%20%20%20return%20null%3B%0A%20%20%20%20%7D%0A%20%20%7D%0A%20%20%2F**%20Local-side%20IPC%20implementation%20stub%20class.%20*%2F%0A%20%20public%20static%20abstract%20class%20Stub%20extends%20android.os.Binder%20implements%20com.example.myipc.maidl.IUserManager%0A%20%20%7B%0A%20%20%20%20private%20static%20final%20java.lang.String%20DESCRIPTOR%20%3D%20%22com.example.myipc.maidl.IUserManager%22%3B%0A%20%20%20%20%2F**%20Construct%20the%20stub%20at%20attach%20it%20to%20the%20interface.%20*%2F%0A%20%20%20%20public%20Stub()%0A%20%20%20%20%7B%0A%20%20%20%20%20%20this.attachInterface(this%2C%20DESCRIPTOR)%3B%0A%20%20%20%20%7D%0A%20%20%20%20%2F**%0A%20%20%20%20%20*%20Cast%20an%20IBinder%20object%20into%20an%20com.example.myipc.maidl.IUserManager%20interface%2C%0A%20%20%20%20%20*%20generating%20a%20proxy%20if%20needed.%0A%20%20%20%20%20*%2F%0A%20%20%20%20public%20static%20com.example.myipc.maidl.IUserManager%20asInterface(android.os.IBinder%20obj)%0A%20%20%20%20%7B%0A%20%20%20%20%20%20if%20((obj%3D%3Dnull))%20%7B%0A%20%20%20%20%20%20%20%20return%20null%3B%0A%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20android.os.IInterface%20iin%20%3D%20obj.queryLocalInterface(DESCRIPTOR)%3B%0A%20%20%20%20%20%20if%20(((iin!%3Dnull)%26%26(iin%20instanceof%20com.example.myipc.maidl.IUserManager)))%20%7B%0A%20%20%20%20%20%20%20%20return%20((com.example.myipc.maidl.IUserManager)iin)%3B%0A%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20return%20new%20com.example.myipc.maidl.IUserManager.Stub.Proxy(obj)%3B%0A%20%20%20%20%7D%0A%20%20%20%20%40Override%20public%20android.os.IBinder%20asBinder()%0A%20%20%20%20%7B%0A%20%20%20%20%20%20return%20this%3B%0A%20%20%20%20%7D%0A%20%20%20%20%40Override%20public%20boolean%20onTransact(int%20code%2C%20android.os.Parcel%20data%2C%20android.os.Parcel%20reply%2C%20int%20flags)%20throws%20android.os.RemoteException%0A%20%20%20%20%7B%0A%20%20%20%20%20%20java.lang.String%20descriptor%20%3D%20DESCRIPTOR%3B%0A%20%20%20%20%20%20switch%20(code)%0A%20%20%20%20%20%20%7B%0A%20%20%20%20%20%20%20%20case%20INTERFACE_TRANSACTION%3A%0A%20%20%20%20%20%20%20%20%7B%0A%20%20%20%20%20%20%20%20%20%20reply.writeString(descriptor)%3B%0A%20%20%20%20%20%20%20%20%20%20return%20true%3B%0A%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20case%20TRANSACTION_getUser%3A%0A%20%20%20%20%20%20%20%20%7B%0A%20%20%20%20%20%20%20%20%20%20data.enforceInterface(descriptor)%3B%0A%20%20%20%20%20%20%20%20%20%20java.util.List%3Ccom.example.myipc.maidl.User%3E%20_result%20%3D%20this.getUser()%3B%0A%20%20%20%20%20%20%20%20%20%20reply.writeNoException()%3B%0A%20%20%20%20%20%20%20%20%20%20reply.writeTypedList(_result)%3B%0A%20%20%20%20%20%20%20%20%20%20return%20true%3B%0A%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20case%20TRANSACTION_addUser%3A%0A%20%20%20%20%20%20%20%20%7B%0A%20%20%20%20%20%20%20%20%20%20data.enforceInterface(descriptor)%3B%0A%20%20%20%20%20%20%20%20%20%20com.example.myipc.maidl.User%20_arg0%3B%0A%20%20%20%20%20%20%20%20%20%20if%20((0!%3Ddata.readInt()))%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20_arg0%20%3D%20com.example.myipc.maidl.User.CREATOR.createFromParcel(data)%3B%0A%20%20%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20%20%20else%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20_arg0%20%3D%20null%3B%0A%20%20%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20%20%20this.addUser(_arg0)%3B%0A%20%20%20%20%20%20%20%20%20%20reply.writeNoException()%3B%0A%20%20%20%20%20%20%20%20%20%20return%20true%3B%0A%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20default%3A%0A%20%20%20%20%20%20%20%20%7B%0A%20%20%20%20%20%20%20%20%20%20return%20super.onTransact(code%2C%20data%2C%20reply%2C%20flags)%3B%0A%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%7D%0A%20%20%20%20%7D%0A%20%20%20%20private%20static%20class%20Proxy%20implements%20com.example.myipc.maidl.IUserManager%0A%20%20%20%20%7B%0A%20%20%20%20%20%20private%20android.os.IBinder%20mRemote%3B%0A%20%20%20%20%20%20Proxy(android.os.IBinder%20remote)%0A%20%20%20%20%20%20%7B%0A%20%20%20%20%20%20%20%20mRemote%20%3D%20remote%3B%0A%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%40Override%20public%20android.os.IBinder%20asBinder()%0A%20%20%20%20%20%20%7B%0A%20%20%20%20%20%20%20%20return%20mRemote%3B%0A%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20public%20java.lang.String%20getInterfaceDescriptor()%0A%20%20%20%20%20%20%7B%0A%20%20%20%20%20%20%20%20return%20DESCRIPTOR%3B%0A%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%40Override%20public%20java.util.List%3Ccom.example.myipc.maidl.User%3E%20getUser()%20throws%20android.os.RemoteException%0A%20%20%20%20%20%20%7B%0A%20%20%20%20%20%20%20%20android.os.Parcel%20_data%20%3D%20android.os.Parcel.obtain()%3B%0A%20%20%20%20%20%20%20%20android.os.Parcel%20_reply%20%3D%20android.os.Parcel.obtain()%3B%0A%20%20%20%20%20%20%20%20java.util.List%3Ccom.example.myipc.maidl.User%3E%20_result%3B%0A%20%20%20%20%20%20%20%20try%20%7B%0A%20%20%20%20%20%20%20%20%20%20_data.writeInterfaceToken(DESCRIPTOR)%3B%0A%20%20%20%20%20%20%20%20%20%20boolean%20_status%20%3D%20mRemote.transact(Stub.TRANSACTION_getUser%2C%20_data%2C%20_reply%2C%200)%3B%0A%20%20%20%20%20%20%20%20%20%20if%20(!_status%20%26%26%20getDefaultImpl()%20!%3D%20null)%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20return%20getDefaultImpl().getUser()%3B%0A%20%20%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20%20%20_reply.readException()%3B%0A%20%20%20%20%20%20%20%20%20%20_result%20%3D%20_reply.createTypedArrayList(com.example.myipc.maidl.User.CREATOR)%3B%0A%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20finally%20%7B%0A%20%20%20%20%20%20%20%20%20%20_reply.recycle()%3B%0A%20%20%20%20%20%20%20%20%20%20_data.recycle()%3B%0A%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20return%20_result%3B%0A%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%40Override%20public%20void%20addUser(com.example.myipc.maidl.User%20user)%20throws%20android.os.RemoteException%0A%20%20%20%20%20%20%7B%0A%20%20%20%20%20%20%20%20android.os.Parcel%20_data%20%3D%20android.os.Parcel.obtain()%3B%0A%20%20%20%20%20%20%20%20android.os.Parcel%20_reply%20%3D%20android.os.Parcel.obtain()%3B%0A%20%20%20%20%20%20%20%20try%20%7B%0A%20%20%20%20%20%20%20%20%20%20_data.writeInterfaceToken(DESCRIPTOR)%3B%0A%20%20%20%20%20%20%20%20%20%20if%20((user!%3Dnull))%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20_data.writeInt(1)%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20user.writeToParcel(_data%2C%200)%3B%0A%20%20%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20%20%20else%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20_data.writeInt(0)%3B%0A%20%20%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20%20%20boolean%20_status%20%3D%20mRemote.transact(Stub.TRANSACTION_addUser%2C%20_data%2C%20_reply%2C%200)%3B%0A%20%20%20%20%20%20%20%20%20%20if%20(!_status%20%26%26%20getDefaultImpl()%20!%3D%20null)%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20getDefaultImpl().addUser(user)%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20return%3B%0A%20%20%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20%20%20_reply.readException()%3B%0A%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20finally%20%7B%0A%20%20%20%20%20%20%20%20%20%20_reply.recycle()%3B%0A%20%20%20%20%20%20%20%20%20%20_data.recycle()%3B%0A%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20public%20static%20com.example.myipc.maidl.IUserManager%20sDefaultImpl%3B%0A%20%20%20%20%7D%0A%20%20%20%20static%20final%20int%20TRANSACTION_getUser%20%3D%20(android.os.IBinder.FIRST_CALL_TRANSACTION%20%2B%200)%3B%0A%20%20%20%20static%20final%20int%20TRANSACTION_addUser%20%3D%20(android.os.IBinder.FIRST_CALL_TRANSACTION%20%2B%201)%3B%0A%20%20%20%20public%20static%20boolean%20setDefaultImpl(com.example.myipc.maidl.IUserManager%20impl)%20%7B%0A%20%20%20%20%20%20if%20(Stub.Proxy.sDefaultImpl%20%3D%3D%20null%20%26%26%20impl%20!%3D%20null)%20%7B%0A%20%20%20%20%20%20%20%20Stub.Proxy.sDefaultImpl%20%3D%20impl%3B%0A%20%20%20%20%20%20%20%20return%20true%3B%0A%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20return%20false%3B%0A%20%20%20%20%7D%0A%20%20%20%20public%20static%20com.example.myipc.maidl.IUserManager%20getDefaultImpl()%20%7B%0A%20%20%20%20%20%20return%20Stub.Proxy.sDefaultImpl%3B%0A%20%20%20%20%7D%0A%20%20%7D%0A%20%20public%20java.util.List%3Ccom.example.myipc.maidl.User%3E%20getUser()%20throws%20android.os.RemoteException%3B%0A%20%20public%20void%20addUser(com.example.myipc.maidl.User%20user)%20throws%20android.os.RemoteException%3B%0A%7D%0A%0A%60%60%60%0A%E4%BB%8E%E6%BA%90%E7%A0%81%E6%88%91%E4%BB%AC%E5%8F%AF%E4%BB%A5%E7%9F%A5%E9%81%93%E4%BB%96%E4%BB%AC%E9%83%BD%E7%BB%A7%E6%89%BF%E4%BA%8EIInterface%E6%8E%A5%E5%8F%A3%EF%BC%8C%E5%B9%B6%E4%B8%94%E6%98%AFBinder%E7%B1%BB%0A%0A%E4%B8%BB%E8%A6%81%E5%86%85%E5%AE%B9%E9%83%BD%E5%9C%A8Stub%E8%BF%99%E4%B8%AA%E7%B1%BB%E4%B8%AD%EF%BC%8C%E5%AE%83%E8%BF%98%E5%8C%85%E5%90%AB%E4%BA%86%E4%B8%80%E4%B8%AAProxy%E9%9D%99%E6%80%81%E5%86%85%E9%83%A8%E7%B1%BB%0A%0ADESCRIPTOR%EF%BC%9ABinder%E7%9A%84%E5%94%AF%E4%B8%80%E6%A0%87%E8%AF%86%E7%AC%A6%0A%0AasInterface()%3A%E5%B0%86%E6%9C%8D%E5%8A%A1%E7%AB%AF%E7%AB%AFBinder%E5%AF%B9%E8%B1%A1%E8%BD%AC%E6%8D%A2%E4%B8%BA%E5%AE%A2%E6%88%B7%E7%AB%AF%E6%89%80%E9%9C%80%E8%A6%81%E7%9A%84AIDL%E6%8E%A5%E5%8F%A3%E7%B1%BB%E5%9E%8B%E5%AF%B9%E8%B1%A1%EF%BC%8C%E5%A6%82%E6%9E%9C%E5%AE%A2%E6%88%B7%E7%AB%AF%E5%92%8C%E6%9C%8D%E5%8A%A1%E5%9C%A8%E5%90%8C%E4%B8%80%E8%BF%9B%E7%A8%8B%E5%B0%B1%E8%BF%94%E5%9B%9EStub%E5%AF%B9%E8%B1%A1%EF%BC%8C%E5%90%A6%E5%88%99%E5%B0%B1%E8%BF%94%E5%9B%9EStub.Proxy%E5%AF%B9%E8%B1%A1%E3%80%82%0A%0Aboolean%20onTransact(int%20code%2C%20Parcel%20data%2C%20Parcel%20reply%2C%20int%20flags)%3A%0A%E5%BD%93%E5%AE%A2%E6%88%B7%E7%AB%AF%E5%8F%91%E8%B5%B7%E8%B7%A8%E8%BF%9B%E7%A8%8B%E8%AF%B7%E6%B1%82%E6%97%B6%EF%BC%8C%E8%BF%9C%E7%A8%8B%E8%AF%B7%E6%B1%82%E5%B0%B1%E4%BC%9A%E7%BB%8F%E8%BF%87%E7%B3%BB%E7%BB%9F%E5%B0%81%E8%A3%85%E4%BA%A4%E7%BB%99%E8%BF%99%E4%B8%AA%E6%96%B9%E6%B3%95%E5%A4%84%E7%90%86%EF%BC%8C%E5%85%B6%E4%B8%ADcode%E4%BB%A3%E8%A1%A8%E6%98%AF%E5%93%AA%E4%B8%AA%E6%96%B9%E6%B3%95%0Adata%E4%BB%A3%E8%A1%A8%E8%AF%B7%E6%B1%82%E5%8F%82%E6%95%B0%EF%BC%8Creply%E4%BB%A3%E8%A1%A8%E5%93%8D%E5%BA%94%E5%8F%82%E6%95%B0%EF%BC%8C%E5%BD%93%E8%BF%9C%E7%A8%8B%E8%BF%87%E7%A8%8B%E8%B0%83%E7%94%A8%E7%BB%93%E6%9D%9F%E5%90%8E%E5%B0%B1%E4%BC%9A%E5%B0%86%E7%BB%93%E6%9E%9C%E5%86%99%E5%85%A5reply%E4%B8%AD%E3%80%82%E5%A6%82%E6%9E%9C%E6%96%B9%E6%B3%95%E8%BF%94%E5%9B%9Efalse%EF%BC%8C%E4%BB%A3%E8%A1%A8%E8%B0%83%E7%94%A8%E5%A4%B1%E8%B4%A5%E3%80%82%0A%0AProxy%23List%3CUser%3E%20getUser()%2Fvoid%20addUser(User%20user)%3A%0A%E5%AE%83%E7%9A%84%E8%B0%83%E7%94%A8%E8%BF%87%E7%A8%8B%EF%BC%9A%E5%AE%A2%E6%88%B7%E7%AB%AF%E8%BF%9C%E7%A8%8B%E8%B0%83%E7%94%A8%E6%AD%A4%E6%96%B9%E6%B3%95%EF%BC%8C%E9%A6%96%E5%85%88%E5%88%9B%E5%BB%BA%E8%BE%93%E5%85%A5%E5%9E%8BParcel%E5%AF%B9%E8%B1%A1_data%2C%E8%BE%93%E5%87%BA%E5%9E%8BParcel%E5%AF%B9%E8%B1%A1_reply%EF%BC%8C%E4%BB%A5%E5%8F%8A%E9%9C%80%E8%A6%81%E8%BF%94%E5%9B%9E%E7%9A%84%E5%AF%B9%E8%B1%A1%E7%B1%BB%E5%9E%8B%EF%BC%8C%E9%A6%96%E5%85%88%E6%8A%8A%E9%9C%80%E8%A6%81%E7%9A%84%E5%8F%82%E6%95%B0%E6%94%BE%E5%85%A5_data%E4%B8%AD%EF%BC%8C%E7%84%B6%E5%90%8E%E8%B0%83%E7%94%A8transact()%E6%96%B9%E6%B3%95%EF%BC%8C%E7%BA%BF%E7%A8%8B%E6%8C%82%E8%B5%B7%EF%BC%8C%E8%BF%9C%E7%A8%8B%E8%BF%87%E7%A8%8B%E8%B0%83%E7%94%A8%E8%BF%94%E5%9B%9E%E5%90%8E%E4%BB%8Ereply%E4%B8%AD%E5%8F%96%E5%87%BA%E8%BF%94%E5%9B%9E%E6%95%B0%E6%8D%AE%EF%BC%8C%E6%9C%80%E5%90%8E%E5%B0%86%E6%95%B0%E6%8D%AE%E8%BF%94%E5%9B%9E%E3%80%82%0A%0A%0A</center></body></html>

@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/><meta name="exporter-version" content="Evernote Mac 9.2.0 (458672)"/><meta name="author" content="林"/><meta name="created" content="2019-10-16 11:25:59 +0000"/><meta name="source" content="desktop.mac"/><meta name="updated" content="2019-10-16 11:45:19 +0000"/><meta name="content-class" content="yinxiang.markdown"/><title>OkHttp 任务队列</title></head><body><div style="font-size: 14px; margin: 0; padding: 0; width: 100%;"><p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">线程池<br/>
+线程池的优点在于线程的复用<br/>
+通常来说使用线程的开销：</p>
+<ul style="line-height: 160%; box-sizing: content-box; display: block; list-style-type: disc; padding-left: 30px; margin: 6px 0 10px; color: #333;">
+<li style="line-height: 160%; box-sizing: content-box; position: relative;">创建一个线程</li>
+<li style="line-height: 160%; box-sizing: content-box; position: relative;">线程执行任务</li>
+<li style="line-height: 160%; box-sizing: content-box; position: relative;">线程的销毁<br/>
+线程池通过对线程进行缓存，减少了线程创建和销毁的开销，并且避免了线程过少cpu的限制，线程过多时内存的增大上下文切换的开销</li>
+</ul>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">okHttp的任务队列主要由dispatcher来实现</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">public final class Dispatcher {
+
+  //最大并发线程数
+  private int maxRequests = 64;
+  //统一域名下最大并发线程数
+  private int maxRequestsPerHost = 5;
+  private Runnable idleCallback;
+
+  //调度器内部的线程池
+  private ExecutorService executorService;
+
+  //异步就绪队列
+  private final Deque&lt;AsyncCall&gt; readyAsyncCalls = new ArrayDeque&lt;&gt;();
+
+  //异步正在运行队列
+  private final Deque&lt;AsyncCall&gt; runningAsyncCalls = new ArrayDeque&lt;&gt;();
+
+  //同步正在运行队列
+  private final Deque&lt;RealCall&gt; runningSyncCalls = new ArrayDeque&lt;&gt;();
+
+  public Dispatcher(ExecutorService executorService) {
+    this.executorService = executorService;
+  }
+
+  public Dispatcher() {
+  }
+
+  //第一个参数是最小并发线程数
+  //这里设置0的如果空闲一段时间线程池内线程会全部销毁
+  //空闲线程最大存活60s
+  public synchronized ExecutorService executorService() {
+    if (executorService == null) {
+      executorService = new ThreadPoolExecutor(0, Integer.MAX_VALUE, 60, TimeUnit.SECONDS,
+          new SynchronousQueue&lt;Runnable&gt;(), Util.threadFactory("OkHttp Dispatcher", false));
+    }
+    return executorService;
+  }
+  
+  ...
+}
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">okHttp执行同步请求：</p>
+<ul style="line-height: 160%; box-sizing: content-box; display: block; list-style-type: disc; padding-left: 30px; margin: 6px 0 10px; color: #333;">
+<li style="line-height: 160%; box-sizing: content-box; position: relative;">将请求加入任务队列</li>
+<li style="line-height: 160%; box-sizing: content-box; position: relative;">执行任务</li>
+<li style="line-height: 160%; box-sizing: content-box; position: relative;">将任务移除任务队列</li>
+</ul>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">okHttp执行异步请求：</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">synchronized void enqueue(AsyncCall call) {
+    //正在运行的异步任务小于64，同一域名下小于5
+  if (runningAsyncCalls.size() &lt; maxRequests &amp;&amp; runningCallsForHost(call) &lt; maxRequestsPerHost) {
+    //加入正在运行的队列
+    runningAsyncCalls.add(call);
+    //线程池执行线程逻辑
+    executorService().execute(call);
+  } else {
+    //加入到就绪队列
+    readyAsyncCalls.add(call);
+  }
+}
+</code></pre>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">#AsyncCall#execute()
+
+@Override protected void execute() {
+  boolean signalledCallback = false;
+  try {
+      //执行网络请求。。
+    Response response = getResponseWithInterceptorChain(forWebSocket);
+    if (canceled) {
+      signalledCallback = true;
+      //在线程池中回调
+      responseCallback.onFailure(RealCall.this, new IOException("Canceled"));
+    } else {
+      signalledCallback = true;
+      responseCallback.onResponse(RealCall.this, response);
+    }
+  } catch (IOException e) {
+    if (signalledCallback) {
+      logger.log(Level.INFO, "Callback failure for " + toLoggableString(), e);
+    } else {
+      responseCallback.onFailure(RealCall.this, e);
+    }
+  } finally {
+    //任务完成，移除队列 
+    client.dispatcher().finished(this);
+  }
+}
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">finished()<br/>
+如果有空闲的线程，则调用promoteCalls<br/>
+如果整个线程池空闲，则调用idleCallback.run();</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">private &lt;T&gt; void finished(Deque&lt;T&gt; calls, T call, boolean promoteCalls) {
+    int runningCallsCount;
+    Runnable idleCallback;
+    synchronized (this) {
+      if (!calls.remove(call)) throw new AssertionError("Call wasn't in-flight!");
+      if (promoteCalls) promoteCalls();
+      runningCallsCount = runningCallsCount();
+      idleCallback = this.idleCallback;
+    }
+
+    if (runningCallsCount == 0 &amp;&amp; idleCallback != null) {
+      idleCallback.run();
+    }
+  }
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">promoteCalls()</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">  private void promoteCalls() {
+    //正在运行的任务大于64，返回
+    if (runningAsyncCalls.size() &gt;= maxRequests) return;
+    //就绪队列为空，返回
+    if (readyAsyncCalls.isEmpty()) return;calls to promote.
+
+    //对整个就绪队列进行便利，将它们加入运行队列并运行，知道运行的队列等于64wei zhi
+    for (Iterator&lt;AsyncCall&gt; i = readyAsyncCalls.iterator(); i.hasNext(); ) {
+      AsyncCall call = i.next();
+
+      if (runningCallsForHost(call) &lt; maxRequestsPerHost) {
+        i.remove();
+        runningAsyncCalls.add(call);
+        executorService().execute(call);
+      }
+
+      if (runningAsyncCalls.size() &gt;= maxRequests) return; // Reached max capacity.
+    }
+  }
+</code></pre>
+</div><center style="display:none !important;visibility:collapse !important;height:0 !important;white-space:nowrap;width:100%;overflow:hidden">%E7%BA%BF%E7%A8%8B%E6%B1%A0%0A%E7%BA%BF%E7%A8%8B%E6%B1%A0%E7%9A%84%E4%BC%98%E7%82%B9%E5%9C%A8%E4%BA%8E%E7%BA%BF%E7%A8%8B%E7%9A%84%E5%A4%8D%E7%94%A8%0A%E9%80%9A%E5%B8%B8%E6%9D%A5%E8%AF%B4%E4%BD%BF%E7%94%A8%E7%BA%BF%E7%A8%8B%E7%9A%84%E5%BC%80%E9%94%80%EF%BC%9A%0A*%20%E5%88%9B%E5%BB%BA%E4%B8%80%E4%B8%AA%E7%BA%BF%E7%A8%8B%0A*%20%E7%BA%BF%E7%A8%8B%E6%89%A7%E8%A1%8C%E4%BB%BB%E5%8A%A1%0A*%20%E7%BA%BF%E7%A8%8B%E7%9A%84%E9%94%80%E6%AF%81%0A%E7%BA%BF%E7%A8%8B%E6%B1%A0%E9%80%9A%E8%BF%87%E5%AF%B9%E7%BA%BF%E7%A8%8B%E8%BF%9B%E8%A1%8C%E7%BC%93%E5%AD%98%EF%BC%8C%E5%87%8F%E5%B0%91%E4%BA%86%E7%BA%BF%E7%A8%8B%E5%88%9B%E5%BB%BA%E5%92%8C%E9%94%80%E6%AF%81%E7%9A%84%E5%BC%80%E9%94%80%EF%BC%8C%E5%B9%B6%E4%B8%94%E9%81%BF%E5%85%8D%E4%BA%86%E7%BA%BF%E7%A8%8B%E8%BF%87%E5%B0%91cpu%E7%9A%84%E9%99%90%E5%88%B6%EF%BC%8C%E7%BA%BF%E7%A8%8B%E8%BF%87%E5%A4%9A%E6%97%B6%E5%86%85%E5%AD%98%E7%9A%84%E5%A2%9E%E5%A4%A7%E4%B8%8A%E4%B8%8B%E6%96%87%E5%88%87%E6%8D%A2%E7%9A%84%E5%BC%80%E9%94%80%0A%0AokHttp%E7%9A%84%E4%BB%BB%E5%8A%A1%E9%98%9F%E5%88%97%E4%B8%BB%E8%A6%81%E7%94%B1dispatcher%E6%9D%A5%E5%AE%9E%E7%8E%B0%0A%60%60%60%0Apublic%20final%20class%20Dispatcher%20%7B%0A%0A%20%20%2F%2F%E6%9C%80%E5%A4%A7%E5%B9%B6%E5%8F%91%E7%BA%BF%E7%A8%8B%E6%95%B0%0A%20%20private%20int%20maxRequests%20%3D%2064%3B%0A%20%20%2F%2F%E7%BB%9F%E4%B8%80%E5%9F%9F%E5%90%8D%E4%B8%8B%E6%9C%80%E5%A4%A7%E5%B9%B6%E5%8F%91%E7%BA%BF%E7%A8%8B%E6%95%B0%0A%20%20private%20int%20maxRequestsPerHost%20%3D%205%3B%0A%20%20private%20Runnable%20idleCallback%3B%0A%0A%20%20%2F%2F%E8%B0%83%E5%BA%A6%E5%99%A8%E5%86%85%E9%83%A8%E7%9A%84%E7%BA%BF%E7%A8%8B%E6%B1%A0%0A%20%20private%20ExecutorService%20executorService%3B%0A%0A%20%20%2F%2F%E5%BC%82%E6%AD%A5%E5%B0%B1%E7%BB%AA%E9%98%9F%E5%88%97%0A%20%20private%20final%20Deque%3CAsyncCall%3E%20readyAsyncCalls%20%3D%20new%20ArrayDeque%3C%3E()%3B%0A%0A%20%20%2F%2F%E5%BC%82%E6%AD%A5%E6%AD%A3%E5%9C%A8%E8%BF%90%E8%A1%8C%E9%98%9F%E5%88%97%0A%20%20private%20final%20Deque%3CAsyncCall%3E%20runningAsyncCalls%20%3D%20new%20ArrayDeque%3C%3E()%3B%0A%0A%20%20%2F%2F%E5%90%8C%E6%AD%A5%E6%AD%A3%E5%9C%A8%E8%BF%90%E8%A1%8C%E9%98%9F%E5%88%97%0A%20%20private%20final%20Deque%3CRealCall%3E%20runningSyncCalls%20%3D%20new%20ArrayDeque%3C%3E()%3B%0A%0A%20%20public%20Dispatcher(ExecutorService%20executorService)%20%7B%0A%20%20%20%20this.executorService%20%3D%20executorService%3B%0A%20%20%7D%0A%0A%20%20public%20Dispatcher()%20%7B%0A%20%20%7D%0A%0A%20%20%2F%2F%E7%AC%AC%E4%B8%80%E4%B8%AA%E5%8F%82%E6%95%B0%E6%98%AF%E6%9C%80%E5%B0%8F%E5%B9%B6%E5%8F%91%E7%BA%BF%E7%A8%8B%E6%95%B0%0A%20%20%2F%2F%E8%BF%99%E9%87%8C%E8%AE%BE%E7%BD%AE0%E7%9A%84%E5%A6%82%E6%9E%9C%E7%A9%BA%E9%97%B2%E4%B8%80%E6%AE%B5%E6%97%B6%E9%97%B4%E7%BA%BF%E7%A8%8B%E6%B1%A0%E5%86%85%E7%BA%BF%E7%A8%8B%E4%BC%9A%E5%85%A8%E9%83%A8%E9%94%80%E6%AF%81%0A%20%20%2F%2F%E7%A9%BA%E9%97%B2%E7%BA%BF%E7%A8%8B%E6%9C%80%E5%A4%A7%E5%AD%98%E6%B4%BB60s%0A%20%20public%20synchronized%20ExecutorService%20executorService()%20%7B%0A%20%20%20%20if%20(executorService%20%3D%3D%20null)%20%7B%0A%20%20%20%20%20%20executorService%20%3D%20new%20ThreadPoolExecutor(0%2C%20Integer.MAX_VALUE%2C%2060%2C%20TimeUnit.SECONDS%2C%0A%20%20%20%20%20%20%20%20%20%20new%20SynchronousQueue%3CRunnable%3E()%2C%20Util.threadFactory(%22OkHttp%20Dispatcher%22%2C%20false))%3B%0A%20%20%20%20%7D%0A%20%20%20%20return%20executorService%3B%0A%20%20%7D%0A%20%20%0A%20%20...%0A%7D%0A%60%60%60%0A%0AokHttp%E6%89%A7%E8%A1%8C%E5%90%8C%E6%AD%A5%E8%AF%B7%E6%B1%82%EF%BC%9A%0A*%20%E5%B0%86%E8%AF%B7%E6%B1%82%E5%8A%A0%E5%85%A5%E4%BB%BB%E5%8A%A1%E9%98%9F%E5%88%97%0A*%20%E6%89%A7%E8%A1%8C%E4%BB%BB%E5%8A%A1%0A*%20%E5%B0%86%E4%BB%BB%E5%8A%A1%E7%A7%BB%E9%99%A4%E4%BB%BB%E5%8A%A1%E9%98%9F%E5%88%97%0A%0AokHttp%E6%89%A7%E8%A1%8C%E5%BC%82%E6%AD%A5%E8%AF%B7%E6%B1%82%EF%BC%9A%0A%60%60%60%0Asynchronized%20void%20enqueue(AsyncCall%20call)%20%7B%0A%20%20%20%20%2F%2F%E6%AD%A3%E5%9C%A8%E8%BF%90%E8%A1%8C%E7%9A%84%E5%BC%82%E6%AD%A5%E4%BB%BB%E5%8A%A1%E5%B0%8F%E4%BA%8E64%EF%BC%8C%E5%90%8C%E4%B8%80%E5%9F%9F%E5%90%8D%E4%B8%8B%E5%B0%8F%E4%BA%8E5%0A%20%20if%20(runningAsyncCalls.size()%20%3C%20maxRequests%20%26%26%20runningCallsForHost(call)%20%3C%20maxRequestsPerHost)%20%7B%0A%20%20%20%20%2F%2F%E5%8A%A0%E5%85%A5%E6%AD%A3%E5%9C%A8%E8%BF%90%E8%A1%8C%E7%9A%84%E9%98%9F%E5%88%97%0A%20%20%20%20runningAsyncCalls.add(call)%3B%0A%20%20%20%20%2F%2F%E7%BA%BF%E7%A8%8B%E6%B1%A0%E6%89%A7%E8%A1%8C%E7%BA%BF%E7%A8%8B%E9%80%BB%E8%BE%91%0A%20%20%20%20executorService().execute(call)%3B%0A%20%20%7D%20else%20%7B%0A%20%20%20%20%2F%2F%E5%8A%A0%E5%85%A5%E5%88%B0%E5%B0%B1%E7%BB%AA%E9%98%9F%E5%88%97%0A%20%20%20%20readyAsyncCalls.add(call)%3B%0A%20%20%7D%0A%7D%0A%60%60%60%0A%0A%60%60%60%0A%23AsyncCall%23execute()%0A%0A%40Override%20protected%20void%20execute()%20%7B%0A%20%20boolean%20signalledCallback%20%3D%20false%3B%0A%20%20try%20%7B%0A%20%20%20%20%20%20%2F%2F%E6%89%A7%E8%A1%8C%E7%BD%91%E7%BB%9C%E8%AF%B7%E6%B1%82%E3%80%82%E3%80%82%0A%20%20%20%20Response%20response%20%3D%20getResponseWithInterceptorChain(forWebSocket)%3B%0A%20%20%20%20if%20(canceled)%20%7B%0A%20%20%20%20%20%20signalledCallback%20%3D%20true%3B%0A%20%20%20%20%20%20%2F%2F%E5%9C%A8%E7%BA%BF%E7%A8%8B%E6%B1%A0%E4%B8%AD%E5%9B%9E%E8%B0%83%0A%20%20%20%20%20%20responseCallback.onFailure(RealCall.this%2C%20new%20IOException(%22Canceled%22))%3B%0A%20%20%20%20%7D%20else%20%7B%0A%20%20%20%20%20%20signalledCallback%20%3D%20true%3B%0A%20%20%20%20%20%20responseCallback.onResponse(RealCall.this%2C%20response)%3B%0A%20%20%20%20%7D%0A%20%20%7D%20catch%20(IOException%20e)%20%7B%0A%20%20%20%20if%20(signalledCallback)%20%7B%0A%20%20%20%20%20%20logger.log(Level.INFO%2C%20%22Callback%20failure%20for%20%22%20%2B%20toLoggableString()%2C%20e)%3B%0A%20%20%20%20%7D%20else%20%7B%0A%20%20%20%20%20%20responseCallback.onFailure(RealCall.this%2C%20e)%3B%0A%20%20%20%20%7D%0A%20%20%7D%20finally%20%7B%0A%20%20%20%20%2F%2F%E4%BB%BB%E5%8A%A1%E5%AE%8C%E6%88%90%EF%BC%8C%E7%A7%BB%E9%99%A4%E9%98%9F%E5%88%97%20%0A%20%20%20%20client.dispatcher().finished(this)%3B%0A%20%20%7D%0A%7D%0A%60%60%60%0A%0Afinished()%0A%E5%A6%82%E6%9E%9C%E6%9C%89%E7%A9%BA%E9%97%B2%E7%9A%84%E7%BA%BF%E7%A8%8B%EF%BC%8C%E5%88%99%E8%B0%83%E7%94%A8promoteCalls%0A%E5%A6%82%E6%9E%9C%E6%95%B4%E4%B8%AA%E7%BA%BF%E7%A8%8B%E6%B1%A0%E7%A9%BA%E9%97%B2%EF%BC%8C%E5%88%99%E8%B0%83%E7%94%A8idleCallback.run()%3B%0A%60%60%60%0Aprivate%20%3CT%3E%20void%20finished(Deque%3CT%3E%20calls%2C%20T%20call%2C%20boolean%20promoteCalls)%20%7B%0A%20%20%20%20int%20runningCallsCount%3B%0A%20%20%20%20Runnable%20idleCallback%3B%0A%20%20%20%20synchronized%20(this)%20%7B%0A%20%20%20%20%20%20if%20(!calls.remove(call))%20throw%20new%20AssertionError(%22Call%20wasn't%20in-flight!%22)%3B%0A%20%20%20%20%20%20if%20(promoteCalls)%20promoteCalls()%3B%0A%20%20%20%20%20%20runningCallsCount%20%3D%20runningCallsCount()%3B%0A%20%20%20%20%20%20idleCallback%20%3D%20this.idleCallback%3B%0A%20%20%20%20%7D%0A%0A%20%20%20%20if%20(runningCallsCount%20%3D%3D%200%20%26%26%20idleCallback%20!%3D%20null)%20%7B%0A%20%20%20%20%20%20idleCallback.run()%3B%0A%20%20%20%20%7D%0A%20%20%7D%0A%60%60%60%0A%0ApromoteCalls()%0A%60%60%60%0A%20%20private%20void%20promoteCalls()%20%7B%0A%20%20%20%20%2F%2F%E6%AD%A3%E5%9C%A8%E8%BF%90%E8%A1%8C%E7%9A%84%E4%BB%BB%E5%8A%A1%E5%A4%A7%E4%BA%8E64%EF%BC%8C%E8%BF%94%E5%9B%9E%0A%20%20%20%20if%20(runningAsyncCalls.size()%20%3E%3D%20maxRequests)%20return%3B%0A%20%20%20%20%2F%2F%E5%B0%B1%E7%BB%AA%E9%98%9F%E5%88%97%E4%B8%BA%E7%A9%BA%EF%BC%8C%E8%BF%94%E5%9B%9E%0A%20%20%20%20if%20(readyAsyncCalls.isEmpty())%20return%3Bcalls%20to%20promote.%0A%0A%20%20%20%20%2F%2F%E5%AF%B9%E6%95%B4%E4%B8%AA%E5%B0%B1%E7%BB%AA%E9%98%9F%E5%88%97%E8%BF%9B%E8%A1%8C%E4%BE%BF%E5%88%A9%EF%BC%8C%E5%B0%86%E5%AE%83%E4%BB%AC%E5%8A%A0%E5%85%A5%E8%BF%90%E8%A1%8C%E9%98%9F%E5%88%97%E5%B9%B6%E8%BF%90%E8%A1%8C%EF%BC%8C%E7%9F%A5%E9%81%93%E8%BF%90%E8%A1%8C%E7%9A%84%E9%98%9F%E5%88%97%E7%AD%89%E4%BA%8E64%E4%B8%BA%E6%AD%A2%E3%80%82%0A%20%20%20%20for%20(Iterator%3CAsyncCall%3E%20i%20%3D%20readyAsyncCalls.iterator()%3B%20i.hasNext()%3B%20)%20%7B%0A%20%20%20%20%20%20AsyncCall%20call%20%3D%20i.next()%3B%0A%0A%20%20%20%20%20%20if%20(runningCallsForHost(call)%20%3C%20maxRequestsPerHost)%20%7B%0A%20%20%20%20%20%20%20%20i.remove()%3B%0A%20%20%20%20%20%20%20%20runningAsyncCalls.add(call)%3B%0A%20%20%20%20%20%20%20%20executorService().execute(call)%3B%0A%20%20%20%20%20%20%7D%0A%0A%20%20%20%20%20%20if%20(runningAsyncCalls.size()%20%3E%3D%20maxRequests)%20return%3B%20%2F%2F%20Reached%20max%20capacity.%0A%20%20%20%20%7D%0A%20%20%7D%0A%60%60%60</center></body></html>

@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/><meta name="exporter-version" content="Evernote Mac 9.2.0 (458672)"/><meta name="altitude" content="50.00028228759766"/><meta name="author" content="林"/><meta name="created" content="2019-10-16 13:23:02 +0000"/><meta name="latitude" content="27.8245849609375"/><meta name="longitude" content="113.0987540301523"/><meta name="source" content="desktop.mac"/><meta name="updated" content="2019-10-16 13:58:26 +0000"/><meta name="content-class" content="yinxiang.markdown"/><title>OkHTTP 连接池</title></head><body><div style="font-size: 14px; margin: 0; padding: 0; width: 100%;"><p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">无论是Http1.1的keep alive机制还是Http2的多路复用机制，都需要连接池来维护连接。<br/>
+OkHttp使用了ConnectionPool来管理连接池</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">public final class ConnectionPool {
+
+  //内部维护的线程池
+  private static final Executor executor = new ThreadPoolExecutor(0 /* corePoolSize */,
+      Integer.MAX_VALUE /* maximumPoolSize */, 60L /* keepAliveTime */, TimeUnit.SECONDS,
+      new SynchronousQueue&lt;Runnable&gt;(), Util.threadFactory("OkHttp ConnectionPool", true));
+
+  /** The maximum number of idle connections for each address. */
+  private final int maxIdleConnections;
+  private final long keepAliveDurationNs;
+  //线程：用来执行清理逻辑
+  private final Runnable cleanupRunnable = new Runnable() {
+    @Override public void run() {
+        ......
+    }
+  };
+
+  private final Deque&lt;RealConnection&gt; connections = new ArrayDeque&lt;&gt;();
+  final RouteDatabase routeDatabase = new RouteDatabase();
+  boolean cleanupRunning;
+  ......
+    
+    /**
+    *返回符合要求的可重用连接，如果没有返回NULL
+   */
+  RealConnection get(Address address, StreamAllocation streamAllocation, Route route) {
+    ......
+  }
+  
+  /*
+  * 去除重复连接。主要针对多路复用场景下一个address只需要一个连接
+  */
+  Socket deduplicate(Address address, StreamAllocation streamAllocation) {
+    ......
+    }
+  
+  /*
+  * 将连接加入连接池
+  */
+  void put(RealConnection connection) {
+      ......
+  }
+  
+  /*
+  * 当有连接空闲时唤起cleanup线程清洗连接池
+  */
+  boolean connectionBecameIdle(RealConnection connection) {
+      ......
+  }
+  
+  /**
+   * 扫描连接池，清除空闲连接
+  */
+  long cleanup(long now) {
+    ......
+  }
+  
+  /*
+   * 标记泄露连接
+  */
+  private int pruneAndGetAllocationCount(RealConnection connection, long now) {
+    ......
+  }
+}
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">connection：<br/>
+RealConnection类型的队列<br/>
+一个RealConnection内部维护了一个List&lt;WeakReference&lt;StramAllocation&gt;&gt;</p>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">ConnectionPool类的方法调用并没有对外公开接口，而是通过了一个internal接口统一对外暴露。<br/>
+internal接口在okhttpclient实例化时被实例化</p>
+<hr style="line-height: 160%; box-sizing: content-box; border-top: 1px solid #eee; margin: 16px 0;"/>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">streamAllocation的findConnection<br/>
+stramAllocation从连接池中获取连接，如果没有符合要求可以复用的连接，则新建连接</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">private RealConnection findConnection(int connectTimeout, int readTimeout, int writeTimeout,
+                                        boolean connectionRetryEnabled) throws IOException {
+    Route selectedRoute;
+    synchronized (connectionPool) {
+      if (released) throw new IllegalStateException("released");
+      if (codec != null) throw new IllegalStateException("codec != null");
+      if (canceled) throw new IOException("Canceled");
+
+      // 一个stramAllocation代表的是一个call，
+      当发生重定向等操作时优先使用之前的连接
+      RealConnection allocatedConnection = this.connection;
+      if (allocatedConnection != null &amp;&amp; !allocatedConnection.noNewStreams) {
+        return allocatedConnection;
+      }
+
+      // 试图从连接池中找到可复用的连接
+      Internal.instance.get(connectionPool, address, this, null);
+      if (connection != null) {
+        return connection;
+      }
+
+      selectedRoute = route;
+    }
+
+    // 获取路由配置
+    if (selectedRoute == null) {
+      selectedRoute = routeSelector.next();
+    }
+
+    RealConnection result;
+    synchronized (connectionPool) {
+      if (canceled) throw new IOException("Canceled");
+
+      //获得路由重新尝试从连接池总查找可以复用的连接
+      Internal.instance.get(connectionPool, address, this, selectedRoute);
+      if (connection != null) return connection;
+
+      //没有可以复用的就新建连接
+      route = selectedRoute;
+      refusedStreamCount = 0;
+      result = new RealConnection(connectionPool, selectedRoute);
+      //修改result连接stream计数
+      acquire(result);
+    }
+
+    // 如果是Https,做Tls/SSL 握手
+    result.connect(connectTimeout, readTimeout, writeTimeout, connectionRetryEnabled);
+    routeDatabase().connected(result.route());
+
+    Socket socket = null;
+    synchronized (connectionPool) {
+      // 将新建的连接放入到连接池中
+      Internal.instance.put(connectionPool, result);
+
+      // 如果在多路复用在存在在同一个域名下的连接
+      // 关闭多余的连接
+      if (result.isMultiplexed()) {
+        socket = Internal.instance.deduplicate(connectionPool, address, this);
+        result = connection;
+      }
+    }
+    closeQuietly(socket);
+
+    return result;
+  }
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">connectionPoll 的 get<br/>
+遍历connections队列，如果合适的连接就返回它，否则就返回null</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">RealConnection get(Address address, StreamAllocation streamAllocation, Route route) {
+    assert (Thread.holdsLock(this));
+    for (RealConnection connection : connections) {
+      if (connection.isEligible(address, route)) {
+        //修改streamAllocation内部连接计数，方便清理
+        streamAllocation.acquire(connection);
+        return connection;
+      }
+    }
+    return null;
+  }
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">连接是否合适在于.isEligible(address, route)<br/>
+如果满足：</p>
+<ul style="line-height: 160%; box-sizing: content-box; display: block; list-style-type: disc; padding-left: 30px; margin: 6px 0 10px; color: #333;">
+<li style="line-height: 160%; box-sizing: content-box; position: relative;">连接没有达到共享上线</li>
+<li style="line-height: 160%; box-sizing: content-box; position: relative;">非host域必须相同</li>
+<li style="line-height: 160%; box-sizing: content-box; position: relative;">如果也host相同则可以复用，如果host不相同，在http2（多路复用）下可以复用</li>
+</ul>
+<hr style="line-height: 160%; box-sizing: content-box; border-top: 1px solid #eee; margin: 16px 0;"/>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">清理回收：<br/>
+连接池内部有一个专门的线程来清理连接<br/>
+它的触发机制是put()操作，connectionBecameIdle 接口被调用</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">while (true) {
+  //执行清理并返回下场需要清理的时间
+  long waitNanos = cleanup(System.nanoTime());
+  //没有连接
+  if (waitNanos == -1) return;
+  //等待waitNanos，然后在循环清理
+  if (waitNanos &gt; 0) {
+    synchronized (ConnectionPool.this) {
+      try {
+ //释放cpu时间片和锁，并等待waitNanos时间  ConnectionPool.this.wait(TimeUnit.NANOSECONDS.toMillis(waitNanos));
+      } catch (InterruptedException ignored) {
+      }
+    }
+  }
+}
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">long cleanup（long now）<br/>
+该方法主要执行清理逻辑<br/>
+如果连接满足（空闲连接数大于5并且连接空闲超过5分钟），则清楚连接<br/>
+如果有空闲连接，则返回它剩余空闲的时间<br/>
+如果没有连接，就返回-1</p>
+</div><center style="display:none !important;visibility:collapse !important;height:0 !important;white-space:nowrap;width:100%;overflow:hidden">%E6%97%A0%E8%AE%BA%E6%98%AFHttp1.1%E7%9A%84keep%20alive%E6%9C%BA%E5%88%B6%E8%BF%98%E6%98%AFHttp2%E7%9A%84%E5%A4%9A%E8%B7%AF%E5%A4%8D%E7%94%A8%E6%9C%BA%E5%88%B6%EF%BC%8C%E9%83%BD%E9%9C%80%E8%A6%81%E8%BF%9E%E6%8E%A5%E6%B1%A0%E6%9D%A5%E7%BB%B4%E6%8A%A4%E8%BF%9E%E6%8E%A5%E3%80%82%0AOkHttp%E4%BD%BF%E7%94%A8%E4%BA%86ConnectionPool%E6%9D%A5%E7%AE%A1%E7%90%86%E8%BF%9E%E6%8E%A5%E6%B1%A0%0A%60%60%60%0Apublic%20final%20class%20ConnectionPool%20%7B%0A%0A%20%20%2F%2F%E5%86%85%E9%83%A8%E7%BB%B4%E6%8A%A4%E7%9A%84%E7%BA%BF%E7%A8%8B%E6%B1%A0%0A%20%20private%20static%20final%20Executor%20executor%20%3D%20new%20ThreadPoolExecutor(0%20%2F*%20corePoolSize%20*%2F%2C%0A%20%20%20%20%20%20Integer.MAX_VALUE%20%2F*%20maximumPoolSize%20*%2F%2C%2060L%20%2F*%20keepAliveTime%20*%2F%2C%20TimeUnit.SECONDS%2C%0A%20%20%20%20%20%20new%20SynchronousQueue%3CRunnable%3E()%2C%20Util.threadFactory(%22OkHttp%20ConnectionPool%22%2C%20true))%3B%0A%0A%20%20%2F**%20The%20maximum%20number%20of%20idle%20connections%20for%20each%20address.%20*%2F%0A%20%20private%20final%20int%20maxIdleConnections%3B%0A%20%20private%20final%20long%20keepAliveDurationNs%3B%0A%20%20%2F%2F%E7%BA%BF%E7%A8%8B%EF%BC%9A%E7%94%A8%E6%9D%A5%E6%89%A7%E8%A1%8C%E6%B8%85%E7%90%86%E9%80%BB%E8%BE%91%0A%20%20private%20final%20Runnable%20cleanupRunnable%20%3D%20new%20Runnable()%20%7B%0A%20%20%20%20%40Override%20public%20void%20run()%20%7B%0A%20%20%20%20%20%20%20%20......%0A%20%20%20%20%7D%0A%20%20%7D%3B%0A%0A%20%20private%20final%20Deque%3CRealConnection%3E%20connections%20%3D%20new%20ArrayDeque%3C%3E()%3B%0A%20%20final%20RouteDatabase%20routeDatabase%20%3D%20new%20RouteDatabase()%3B%0A%20%20boolean%20cleanupRunning%3B%0A%20%20......%0A%20%20%20%20%0A%20%20%20%20%2F**%0A%20%20%20%20*%E8%BF%94%E5%9B%9E%E7%AC%A6%E5%90%88%E8%A6%81%E6%B1%82%E7%9A%84%E5%8F%AF%E9%87%8D%E7%94%A8%E8%BF%9E%E6%8E%A5%EF%BC%8C%E5%A6%82%E6%9E%9C%E6%B2%A1%E6%9C%89%E8%BF%94%E5%9B%9ENULL%0A%20%20%20*%2F%0A%20%20RealConnection%20get(Address%20address%2C%20StreamAllocation%20streamAllocation%2C%20Route%20route)%20%7B%0A%20%20%20%20......%0A%20%20%7D%0A%20%20%0A%20%20%2F*%0A%20%20*%20%E5%8E%BB%E9%99%A4%E9%87%8D%E5%A4%8D%E8%BF%9E%E6%8E%A5%E3%80%82%E4%B8%BB%E8%A6%81%E9%92%88%E5%AF%B9%E5%A4%9A%E8%B7%AF%E5%A4%8D%E7%94%A8%E5%9C%BA%E6%99%AF%E4%B8%8B%E4%B8%80%E4%B8%AAaddress%E5%8F%AA%E9%9C%80%E8%A6%81%E4%B8%80%E4%B8%AA%E8%BF%9E%E6%8E%A5%0A%20%20*%2F%0A%20%20Socket%20deduplicate(Address%20address%2C%20StreamAllocation%20streamAllocation)%20%7B%0A%20%20%20%20......%0A%20%20%20%20%7D%0A%20%20%0A%20%20%2F*%0A%20%20*%20%E5%B0%86%E8%BF%9E%E6%8E%A5%E5%8A%A0%E5%85%A5%E8%BF%9E%E6%8E%A5%E6%B1%A0%0A%20%20*%2F%0A%20%20void%20put(RealConnection%20connection)%20%7B%0A%20%20%20%20%20%20......%0A%20%20%7D%0A%20%20%0A%20%20%2F*%0A%20%20*%20%E5%BD%93%E6%9C%89%E8%BF%9E%E6%8E%A5%E7%A9%BA%E9%97%B2%E6%97%B6%E5%94%A4%E8%B5%B7cleanup%E7%BA%BF%E7%A8%8B%E6%B8%85%E6%B4%97%E8%BF%9E%E6%8E%A5%E6%B1%A0%0A%20%20*%2F%0A%20%20boolean%20connectionBecameIdle(RealConnection%20connection)%20%7B%0A%20%20%20%20%20%20......%0A%20%20%7D%0A%20%20%0A%20%20%2F**%0A%20%20%20*%20%E6%89%AB%E6%8F%8F%E8%BF%9E%E6%8E%A5%E6%B1%A0%EF%BC%8C%E6%B8%85%E9%99%A4%E7%A9%BA%E9%97%B2%E8%BF%9E%E6%8E%A5%0A%20%20*%2F%0A%20%20long%20cleanup(long%20now)%20%7B%0A%20%20%20%20......%0A%20%20%7D%0A%20%20%0A%20%20%2F*%0A%20%20%20*%20%E6%A0%87%E8%AE%B0%E6%B3%84%E9%9C%B2%E8%BF%9E%E6%8E%A5%0A%20%20*%2F%0A%20%20private%20int%20pruneAndGetAllocationCount(RealConnection%20connection%2C%20long%20now)%20%7B%0A%20%20%20%20......%0A%20%20%7D%0A%7D%0A%60%60%60%0Aconnection%EF%BC%9A%0ARealConnection%E7%B1%BB%E5%9E%8B%E7%9A%84%E9%98%9F%E5%88%97%0A%E4%B8%80%E4%B8%AARealConnection%E5%86%85%E9%83%A8%E7%BB%B4%E6%8A%A4%E4%BA%86%E4%B8%80%E4%B8%AAList%3CWeakReference%3CStramAllocation%3E%3E%0A%0AConnectionPool%E7%B1%BB%E7%9A%84%E6%96%B9%E6%B3%95%E8%B0%83%E7%94%A8%E5%B9%B6%E6%B2%A1%E6%9C%89%E5%AF%B9%E5%A4%96%E5%85%AC%E5%BC%80%E6%8E%A5%E5%8F%A3%EF%BC%8C%E8%80%8C%E6%98%AF%E9%80%9A%E8%BF%87%E4%BA%86%E4%B8%80%E4%B8%AAinternal%E6%8E%A5%E5%8F%A3%E7%BB%9F%E4%B8%80%E5%AF%B9%E5%A4%96%E6%9A%B4%E9%9C%B2%E3%80%82%0Ainternal%E6%8E%A5%E5%8F%A3%E5%9C%A8okhttpclient%E5%AE%9E%E4%BE%8B%E5%8C%96%E6%97%B6%E8%A2%AB%E5%AE%9E%E4%BE%8B%E5%8C%96%0A****%0AstreamAllocation%E7%9A%84findConnection%0AstramAllocation%E4%BB%8E%E8%BF%9E%E6%8E%A5%E6%B1%A0%E4%B8%AD%E8%8E%B7%E5%8F%96%E8%BF%9E%E6%8E%A5%EF%BC%8C%E5%A6%82%E6%9E%9C%E6%B2%A1%E6%9C%89%E7%AC%A6%E5%90%88%E8%A6%81%E6%B1%82%E5%8F%AF%E4%BB%A5%E5%A4%8D%E7%94%A8%E7%9A%84%E8%BF%9E%E6%8E%A5%EF%BC%8C%E5%88%99%E6%96%B0%E5%BB%BA%E8%BF%9E%E6%8E%A5%0A%60%60%60%0Aprivate%20RealConnection%20findConnection(int%20connectTimeout%2C%20int%20readTimeout%2C%20int%20writeTimeout%2C%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20boolean%20connectionRetryEnabled)%20throws%20IOException%20%7B%0A%20%20%20%20Route%20selectedRoute%3B%0A%20%20%20%20synchronized%20(connectionPool)%20%7B%0A%20%20%20%20%20%20if%20(released)%20throw%20new%20IllegalStateException(%22released%22)%3B%0A%20%20%20%20%20%20if%20(codec%20!%3D%20null)%20throw%20new%20IllegalStateException(%22codec%20!%3D%20null%22)%3B%0A%20%20%20%20%20%20if%20(canceled)%20throw%20new%20IOException(%22Canceled%22)%3B%0A%0A%20%20%20%20%20%20%2F%2F%20%E4%B8%80%E4%B8%AAstramAllocation%E4%BB%A3%E8%A1%A8%E7%9A%84%E6%98%AF%E4%B8%80%E4%B8%AAcall%EF%BC%8C%0A%20%20%20%20%20%20%E5%BD%93%E5%8F%91%E7%94%9F%E9%87%8D%E5%AE%9A%E5%90%91%E7%AD%89%E6%93%8D%E4%BD%9C%E6%97%B6%E4%BC%98%E5%85%88%E4%BD%BF%E7%94%A8%E4%B9%8B%E5%89%8D%E7%9A%84%E8%BF%9E%E6%8E%A5%0A%20%20%20%20%20%20RealConnection%20allocatedConnection%20%3D%20this.connection%3B%0A%20%20%20%20%20%20if%20(allocatedConnection%20!%3D%20null%20%26%26%20!allocatedConnection.noNewStreams)%20%7B%0A%20%20%20%20%20%20%20%20return%20allocatedConnection%3B%0A%20%20%20%20%20%20%7D%0A%0A%20%20%20%20%20%20%2F%2F%20%E8%AF%95%E5%9B%BE%E4%BB%8E%E8%BF%9E%E6%8E%A5%E6%B1%A0%E4%B8%AD%E6%89%BE%E5%88%B0%E5%8F%AF%E5%A4%8D%E7%94%A8%E7%9A%84%E8%BF%9E%E6%8E%A5%0A%20%20%20%20%20%20Internal.instance.get(connectionPool%2C%20address%2C%20this%2C%20null)%3B%0A%20%20%20%20%20%20if%20(connection%20!%3D%20null)%20%7B%0A%20%20%20%20%20%20%20%20return%20connection%3B%0A%20%20%20%20%20%20%7D%0A%0A%20%20%20%20%20%20selectedRoute%20%3D%20route%3B%0A%20%20%20%20%7D%0A%0A%20%20%20%20%2F%2F%20%E8%8E%B7%E5%8F%96%E8%B7%AF%E7%94%B1%E9%85%8D%E7%BD%AE%0A%20%20%20%20if%20(selectedRoute%20%3D%3D%20null)%20%7B%0A%20%20%20%20%20%20selectedRoute%20%3D%20routeSelector.next()%3B%0A%20%20%20%20%7D%0A%0A%20%20%20%20RealConnection%20result%3B%0A%20%20%20%20synchronized%20(connectionPool)%20%7B%0A%20%20%20%20%20%20if%20(canceled)%20throw%20new%20IOException(%22Canceled%22)%3B%0A%0A%20%20%20%20%20%20%2F%2F%E8%8E%B7%E5%BE%97%E8%B7%AF%E7%94%B1%E9%87%8D%E6%96%B0%E5%B0%9D%E8%AF%95%E4%BB%8E%E8%BF%9E%E6%8E%A5%E6%B1%A0%E6%80%BB%E6%9F%A5%E6%89%BE%E5%8F%AF%E4%BB%A5%E5%A4%8D%E7%94%A8%E7%9A%84%E8%BF%9E%E6%8E%A5%0A%20%20%20%20%20%20Internal.instance.get(connectionPool%2C%20address%2C%20this%2C%20selectedRoute)%3B%0A%20%20%20%20%20%20if%20(connection%20!%3D%20null)%20return%20connection%3B%0A%0A%20%20%20%20%20%20%2F%2F%E6%B2%A1%E6%9C%89%E5%8F%AF%E4%BB%A5%E5%A4%8D%E7%94%A8%E7%9A%84%E5%B0%B1%E6%96%B0%E5%BB%BA%E8%BF%9E%E6%8E%A5%0A%20%20%20%20%20%20route%20%3D%20selectedRoute%3B%0A%20%20%20%20%20%20refusedStreamCount%20%3D%200%3B%0A%20%20%20%20%20%20result%20%3D%20new%20RealConnection(connectionPool%2C%20selectedRoute)%3B%0A%20%20%20%20%20%20%2F%2F%E4%BF%AE%E6%94%B9result%E8%BF%9E%E6%8E%A5stream%E8%AE%A1%E6%95%B0%0A%20%20%20%20%20%20acquire(result)%3B%0A%20%20%20%20%7D%0A%0A%20%20%20%20%2F%2F%20%E5%A6%82%E6%9E%9C%E6%98%AFHttps%2C%E5%81%9ATls%2FSSL%20%E6%8F%A1%E6%89%8B%0A%20%20%20%20result.connect(connectTimeout%2C%20readTimeout%2C%20writeTimeout%2C%20connectionRetryEnabled)%3B%0A%20%20%20%20routeDatabase().connected(result.route())%3B%0A%0A%20%20%20%20Socket%20socket%20%3D%20null%3B%0A%20%20%20%20synchronized%20(connectionPool)%20%7B%0A%20%20%20%20%20%20%2F%2F%20%E5%B0%86%E6%96%B0%E5%BB%BA%E7%9A%84%E8%BF%9E%E6%8E%A5%E6%94%BE%E5%85%A5%E5%88%B0%E8%BF%9E%E6%8E%A5%E6%B1%A0%E4%B8%AD%0A%20%20%20%20%20%20Internal.instance.put(connectionPool%2C%20result)%3B%0A%0A%20%20%20%20%20%20%2F%2F%20%E5%A6%82%E6%9E%9C%E5%9C%A8%E5%A4%9A%E8%B7%AF%E5%A4%8D%E7%94%A8%E5%9C%A8%E5%AD%98%E5%9C%A8%E5%9C%A8%E5%90%8C%E4%B8%80%E4%B8%AA%E5%9F%9F%E5%90%8D%E4%B8%8B%E7%9A%84%E8%BF%9E%E6%8E%A5%0A%20%20%20%20%20%20%2F%2F%20%E5%85%B3%E9%97%AD%E5%A4%9A%E4%BD%99%E7%9A%84%E8%BF%9E%E6%8E%A5%0A%20%20%20%20%20%20if%20(result.isMultiplexed())%20%7B%0A%20%20%20%20%20%20%20%20socket%20%3D%20Internal.instance.deduplicate(connectionPool%2C%20address%2C%20this)%3B%0A%20%20%20%20%20%20%20%20result%20%3D%20connection%3B%0A%20%20%20%20%20%20%7D%0A%20%20%20%20%7D%0A%20%20%20%20closeQuietly(socket)%3B%0A%0A%20%20%20%20return%20result%3B%0A%20%20%7D%0A%60%60%60%0AconnectionPoll%20%E7%9A%84%20get%0A%E9%81%8D%E5%8E%86connections%E9%98%9F%E5%88%97%EF%BC%8C%E5%A6%82%E6%9E%9C%E5%90%88%E9%80%82%E7%9A%84%E8%BF%9E%E6%8E%A5%E5%B0%B1%E8%BF%94%E5%9B%9E%E5%AE%83%EF%BC%8C%E5%90%A6%E5%88%99%E5%B0%B1%E8%BF%94%E5%9B%9Enull%0A%60%60%60%0ARealConnection%20get(Address%20address%2C%20StreamAllocation%20streamAllocation%2C%20Route%20route)%20%7B%0A%20%20%20%20assert%20(Thread.holdsLock(this))%3B%0A%20%20%20%20for%20(RealConnection%20connection%20%3A%20connections)%20%7B%0A%20%20%20%20%20%20if%20(connection.isEligible(address%2C%20route))%20%7B%0A%20%20%20%20%20%20%20%20%2F%2F%E4%BF%AE%E6%94%B9streamAllocation%E5%86%85%E9%83%A8%E8%BF%9E%E6%8E%A5%E8%AE%A1%E6%95%B0%EF%BC%8C%E6%96%B9%E4%BE%BF%E6%B8%85%E7%90%86%0A%20%20%20%20%20%20%20%20streamAllocation.acquire(connection)%3B%0A%20%20%20%20%20%20%20%20return%20connection%3B%0A%20%20%20%20%20%20%7D%0A%20%20%20%20%7D%0A%20%20%20%20return%20null%3B%0A%20%20%7D%0A%60%60%60%0A%E8%BF%9E%E6%8E%A5%E6%98%AF%E5%90%A6%E5%90%88%E9%80%82%E5%9C%A8%E4%BA%8E.isEligible(address%2C%20route)%0A%E5%A6%82%E6%9E%9C%E6%BB%A1%E8%B6%B3%EF%BC%9A%0A*%20%E8%BF%9E%E6%8E%A5%E6%B2%A1%E6%9C%89%E8%BE%BE%E5%88%B0%E5%85%B1%E4%BA%AB%E4%B8%8A%E7%BA%BF%0A*%20%E9%9D%9Ehost%E5%9F%9F%E5%BF%85%E9%A1%BB%E7%9B%B8%E5%90%8C%0A*%20%E5%A6%82%E6%9E%9C%E4%B9%9Fhost%E7%9B%B8%E5%90%8C%E5%88%99%E5%8F%AF%E4%BB%A5%E5%A4%8D%E7%94%A8%EF%BC%8C%E5%A6%82%E6%9E%9Chost%E4%B8%8D%E7%9B%B8%E5%90%8C%EF%BC%8C%E5%9C%A8http2%EF%BC%88%E5%A4%9A%E8%B7%AF%E5%A4%8D%E7%94%A8%EF%BC%89%E4%B8%8B%E5%8F%AF%E4%BB%A5%E5%A4%8D%E7%94%A8%0A%0A****%0A%E6%B8%85%E7%90%86%E5%9B%9E%E6%94%B6%EF%BC%9A%0A%E8%BF%9E%E6%8E%A5%E6%B1%A0%E5%86%85%E9%83%A8%E6%9C%89%E4%B8%80%E4%B8%AA%E4%B8%93%E9%97%A8%E7%9A%84%E7%BA%BF%E7%A8%8B%E6%9D%A5%E6%B8%85%E7%90%86%E8%BF%9E%E6%8E%A5%0A%E5%AE%83%E7%9A%84%E8%A7%A6%E5%8F%91%E6%9C%BA%E5%88%B6%E6%98%AFput()%E6%93%8D%E4%BD%9C%EF%BC%8CconnectionBecameIdle%20%E6%8E%A5%E5%8F%A3%E8%A2%AB%E8%B0%83%E7%94%A8%0A%0A%60%60%60%0Awhile%20(true)%20%7B%0A%20%20%2F%2F%E6%89%A7%E8%A1%8C%E6%B8%85%E7%90%86%E5%B9%B6%E8%BF%94%E5%9B%9E%E4%B8%8B%E5%9C%BA%E9%9C%80%E8%A6%81%E6%B8%85%E7%90%86%E7%9A%84%E6%97%B6%E9%97%B4%0A%20%20long%20waitNanos%20%3D%20cleanup(System.nanoTime())%3B%0A%20%20%2F%2F%E6%B2%A1%E6%9C%89%E8%BF%9E%E6%8E%A5%0A%20%20if%20(waitNanos%20%3D%3D%20-1)%20return%3B%0A%20%20%2F%2F%E7%AD%89%E5%BE%85waitNanos%EF%BC%8C%E7%84%B6%E5%90%8E%E5%9C%A8%E5%BE%AA%E7%8E%AF%E6%B8%85%E7%90%86%0A%20%20if%20(waitNanos%20%3E%200)%20%7B%0A%20%20%20%20synchronized%20(ConnectionPool.this)%20%7B%0A%20%20%20%20%20%20try%20%7B%0A%20%2F%2F%E9%87%8A%E6%94%BEcpu%E6%97%B6%E9%97%B4%E7%89%87%E5%92%8C%E9%94%81%EF%BC%8C%E5%B9%B6%E7%AD%89%E5%BE%85waitNanos%E6%97%B6%E9%97%B4%20%20ConnectionPool.this.wait(TimeUnit.NANOSECONDS.toMillis(waitNanos))%3B%0A%20%20%20%20%20%20%7D%20catch%20(InterruptedException%20ignored)%20%7B%0A%20%20%20%20%20%20%7D%0A%20%20%20%20%7D%0A%20%20%7D%0A%7D%0A%60%60%60%0Along%20cleanup%EF%BC%88long%20now%EF%BC%89%0A%E8%AF%A5%E6%96%B9%E6%B3%95%E4%B8%BB%E8%A6%81%E6%89%A7%E8%A1%8C%E6%B8%85%E7%90%86%E9%80%BB%E8%BE%91%0A%E5%A6%82%E6%9E%9C%E8%BF%9E%E6%8E%A5%E6%BB%A1%E8%B6%B3%EF%BC%88%E7%A9%BA%E9%97%B2%E8%BF%9E%E6%8E%A5%E6%95%B0%E5%A4%A7%E4%BA%8E5%E5%B9%B6%E4%B8%94%E8%BF%9E%E6%8E%A5%E7%A9%BA%E9%97%B2%E8%B6%85%E8%BF%875%E5%88%86%E9%92%9F%EF%BC%89%EF%BC%8C%E5%88%99%E6%B8%85%E6%A5%9A%E8%BF%9E%E6%8E%A5%0A%E5%A6%82%E6%9E%9C%E6%9C%89%E7%A9%BA%E9%97%B2%E8%BF%9E%E6%8E%A5%EF%BC%8C%E5%88%99%E8%BF%94%E5%9B%9E%E5%AE%83%E5%89%A9%E4%BD%99%E7%A9%BA%E9%97%B2%E7%9A%84%E6%97%B6%E9%97%B4%0A%E5%A6%82%E6%9E%9C%E6%B2%A1%E6%9C%89%E8%BF%9E%E6%8E%A5%EF%BC%8C%E5%B0%B1%E8%BF%94%E5%9B%9E-1</center></body></html>

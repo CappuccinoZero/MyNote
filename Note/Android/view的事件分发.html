@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/><meta name="exporter-version" content="Evernote Mac 9.2.0 (458672)"/><meta name="author" content="林"/><meta name="created" content="2019-10-05 11:59:30 +0000"/><meta name="source" content="desktop.mac"/><meta name="updated" content="2019-10-05 15:30:48 +0000"/><meta name="content-class" content="yinxiang.markdown"/><title>view的事件分发</title></head><body><div style="font-size: 14px; margin: 0; padding: 0; width: 100%;"><p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">View的事件主要由</p>
+<ul style="line-height: 160%; box-sizing: content-box; display: block; list-style-type: disc; padding-left: 30px; margin: 6px 0 10px; color: #333;">
+<li style="line-height: 160%; box-sizing: content-box; position: relative;">dispatchTouchEvent()</li>
+<li style="line-height: 160%; box-sizing: content-box; position: relative;">onInterceptTouchEvent()</li>
+<li style="line-height: 160%; box-sizing: content-box; position: relative;">onTouchEvent()<br/>
+共同完成</li>
+</ul>
+<h4 style="line-height: 160%; box-sizing: content-box; font-size: 20px; color: #333;">对Activity对dispatchtouchevent()方法解析</h4>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">public boolean dispatchTouchEvent(MotionEvent ev) {
+        if (ev.getAction() == MotionEvent.ACTION_DOWN) {
+            onUserInteraction();
+        }
+        if (getWindow().superDispatchTouchEvent(ev)) {
+            return true;
+        }
+        return onTouchEvent(ev);
+    }
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">onUserInteraction()是一个空方法(?)<br/>
+之后会调用window的dispatchtouchevent()方法，如果拦截则返回true<br/>
+否则又activity的ontouchevent()自己处理</p>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">之后windows的dispatchtouchevent()方法之间传递到decorView</p>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">也就是点击事件的分发是：Activity-&gt;Window-&gt;DecorView-&gt;更多子view</p>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">decorView也就是顶级view，通常是一个viewgroup</p>
+<h4 style="line-height: 160%; box-sizing: content-box; font-size: 20px; color: #333;">对ViewGroup对dispatchtouchevent()方法解析</h4>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">mFirstTouchTarget：这个对象通常是null，如果viewgroup的子view拦截量点击事件，则它会指向子view<br/>
+FLAG_DISALLOW_INTERCEPT：让子view让viewgroup不能够再拦截除down以外的点击事件</p>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">按顺序分析源码：</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">if (actionMasked == MotionEvent.ACTION_DOWN) {
+                cancelAndClearTouchTargets(ev);
+                resetTouchState();
+            }
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">上面的源码主要会对<strong style="line-height: 160%; box-sizing: content-box; font-weight: 700;">FLAG_DISALLOW_INTERCEPT</strong>这个标志进行重置</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">if (actionMasked == MotionEvent.ACTION_DOWN
+                    || mFirstTouchTarget != null) {
+                final boolean disallowIntercept = (mGroupFlags &amp; FLAG_DISALLOW_INTERCEPT) != 0;
+                if (!disallowIntercept) {
+                    intercepted = onInterceptTouchEvent(ev);
+                    ev.setAction(action); // restore action in case it was changed
+                } else {
+                    intercepted = false;
+                }
+            } else {
+                // There are no touch targets and this action is not an initial down
+                // so this view group continues to intercept touches.
+                intercepted = true;
+            }
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">上面的事件是对onInterceptTouchEvent(ev)的处理，判断viewgroup是否拦截事件<br/>
+在ACTION_DOWN中一定会调用intercepted = onInterceptTouchEvent(ev)<br/>
+之后的MOVE与UP事件mFirstTouchTarget不为空(viewgroup没有拦截事件，子view拦截了事件)，则intercepted为false</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">for (int i = childrenCount - 1; i &gt;= 0; i--) {。。}
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">如果viewgroup不拦截，接下来会对子view进行遍历，通过dispatchTransformedTouchEvent()方法调用子view的dispatchtoucheven()方法.</p>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">if (child == null) {
+                handled = super.dispatchTouchEvent(event);
+            } else {
+                handled = child.dispatchTouchEvent(event);
+            }
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">如果viewgroup拦截则会调用自身view的dispatchTouchEvent(event)</p>
+<h4 style="line-height: 160%; box-sizing: content-box; font-size: 20px; color: #333;">View的事件分发</h4>
+<pre style="line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; margin: 2px 0 8px; background-color: #f5f7f8;"><code style="display: block; overflow-x: auto; background: #1e1e1e; line-height: 160%; box-sizing: content-box; border: 0; border-radius: 0; letter-spacing: -.3px; padding: 18px; color: #f4f4f4; white-space: pre-wrap;">    public boolean dispatchTouchEvent(MotionEvent event) {
+        ...
+        boolean result = false;
+        ...
+            if ((mViewFlags &amp; ENABLED_MASK) == ENABLED &amp;&amp; handleScrollBarDragging(event)) {
+                result = true;
+            }
+            //noinspection SimplifiableIfStatement
+            ListenerInfo li = mListenerInfo;
+            if (li != null &amp;&amp; li.mOnTouchListener != null
+                    &amp;&amp; (mViewFlags &amp; ENABLED_MASK) == ENABLED
+                    &amp;&amp; li.mOnTouchListener.onTouch(this, event)) {
+                result = true;
+            }
+
+            if (!result &amp;&amp; onTouchEvent(event)) {
+                result = true;
+            }
+        }
+        ..
+        return result;
+    }
+</code></pre>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">view的dispatchTouchEvent()因为没有子元素，所以只对自己进行处理<br/>
+view的dispatchTouchEvent()中没有onInterceptMotion()方法<br/>
+view的dispatchTouchEvent()方法会首先判断ListenerInfo是否被设置</p>
+<ul style="line-height: 160%; box-sizing: content-box; display: block; list-style-type: disc; padding-left: 30px; margin: 6px 0 10px; color: #333;">
+<li style="line-height: 160%; box-sizing: content-box; position: relative;">如果被设置并且list.onTouch()为True则不会调用onTouchEvent()</li>
+</ul>
+<p style="line-height: 160%; box-sizing: content-box; margin: 10px 0; color: #333;">在onTouchEvent()方法中<br/>
+只要CLICKABLE|LONG_CLICLABLE某一个为ture，就会消耗这个点击事件，返回true<br/>
+当ACTION_UP时，会调用performClick()方法，该方法中，如果listener有被设置就会调用listener的<br/>
+<strong style="line-height: 160%; box-sizing: content-box; font-weight: 700;">onClick()</strong> 方法</p>
+<h2 style="line-height: 160%; box-sizing: content-box; font-weight: 700; font-size: 34px; border-bottom: 1px solid #dbdbdb; color: #333;">总结</h2>
+<ol style="line-height: 160%; box-sizing: content-box; display: block; padding-left: 30px; margin: 6px 0 10px; color: #333; list-style-type: decimal;">
+<li style="line-height: 160%; box-sizing: content-box;">如果子容器的onTouchEvent()返回true，则会调用父亲容器的onTouchEvent(),直到到达Activity，由它处理。</li>
+<li style="line-height: 160%; box-sizing: content-box;">如果view不消耗down以外的事件，view的onTouchEvent方法 会收到后续事件，但是消失的事件不会又父view处理，而是交给activity处理。</li>
+<li style="line-height: 160%; box-sizing: content-box;">如果某view拦截事件，但是不消耗down事件，则它不会再收到事件序列中之后的事件。</li>
+<li style="line-height: 160%; box-sizing: content-box;">一个事件序列通常只能被一个view拦截消耗，一旦拦截会，事件序列中之后事件都又它处理</li>
+<li style="line-height: 160%; box-sizing: content-box;">viewgroup通常不会拦截事件</li>
+<li style="line-height: 160%; box-sizing: content-box;">enable不影响onTouchEvent()都返回</li>
+<li style="line-height: 160%; box-sizing: content-box;">onTouchEvent()只有clickable和longclickable都为false才返回false</li>
+</ol>
+</div><center style="display:none !important;visibility:collapse !important;height:0 !important;white-space:nowrap;width:100%;overflow:hidden">View%E7%9A%84%E4%BA%8B%E4%BB%B6%E4%B8%BB%E8%A6%81%E7%94%B1%0A*%20dispatchTouchEvent()%0A*%20onInterceptTouchEvent()%0A*%20onTouchEvent()%0A%E5%85%B1%E5%90%8C%E5%AE%8C%E6%88%90%0A%0A%23%23%23%23%20%E5%AF%B9Activity%E5%AF%B9dispatchtouchevent()%E6%96%B9%E6%B3%95%E8%A7%A3%E6%9E%90%0A%60%60%60%0Apublic%20boolean%20dispatchTouchEvent(MotionEvent%20ev)%20%7B%0A%20%20%20%20%20%20%20%20if%20(ev.getAction()%20%3D%3D%20MotionEvent.ACTION_DOWN)%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20onUserInteraction()%3B%0A%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20if%20(getWindow().superDispatchTouchEvent(ev))%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20return%20true%3B%0A%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20return%20onTouchEvent(ev)%3B%0A%20%20%20%20%7D%0A%60%60%60%0AonUserInteraction()%E6%98%AF%E4%B8%80%E4%B8%AA%E7%A9%BA%E6%96%B9%E6%B3%95(%3F)%0A%E4%B9%8B%E5%90%8E%E4%BC%9A%E8%B0%83%E7%94%A8window%E7%9A%84dispatchtouchevent()%E6%96%B9%E6%B3%95%EF%BC%8C%E5%A6%82%E6%9E%9C%E6%8B%A6%E6%88%AA%E5%88%99%E8%BF%94%E5%9B%9Etrue%0A%E5%90%A6%E5%88%99%E5%8F%88activity%E7%9A%84ontouchevent()%E8%87%AA%E5%B7%B1%E5%A4%84%E7%90%86%0A%0A%E4%B9%8B%E5%90%8Ewindows%E7%9A%84dispatchtouchevent()%E6%96%B9%E6%B3%95%E4%B9%8B%E9%97%B4%E4%BC%A0%E9%80%92%E5%88%B0decorView%0A%0A%E4%B9%9F%E5%B0%B1%E6%98%AF%E7%82%B9%E5%87%BB%E4%BA%8B%E4%BB%B6%E7%9A%84%E5%88%86%E5%8F%91%E6%98%AF%EF%BC%9AActivity-%3EWindow-%3EDecorView-%3E%E6%9B%B4%E5%A4%9A%E5%AD%90view%0A%0AdecorView%E4%B9%9F%E5%B0%B1%E6%98%AF%E9%A1%B6%E7%BA%A7view%EF%BC%8C%E9%80%9A%E5%B8%B8%E6%98%AF%E4%B8%80%E4%B8%AAviewgroup%0A%0A%23%23%23%23%20%E5%AF%B9ViewGroup%E5%AF%B9dispatchtouchevent()%E6%96%B9%E6%B3%95%E8%A7%A3%E6%9E%90%0AmFirstTouchTarget%EF%BC%9A%E8%BF%99%E4%B8%AA%E5%AF%B9%E8%B1%A1%E9%80%9A%E5%B8%B8%E6%98%AFnull%EF%BC%8C%E5%A6%82%E6%9E%9Cviewgroup%E7%9A%84%E5%AD%90view%E6%8B%A6%E6%88%AA%E9%87%8F%E7%82%B9%E5%87%BB%E4%BA%8B%E4%BB%B6%EF%BC%8C%E5%88%99%E5%AE%83%E4%BC%9A%E6%8C%87%E5%90%91%E5%AD%90view%0AFLAG_DISALLOW_INTERCEPT%EF%BC%9A%E8%AE%A9%E5%AD%90view%E8%AE%A9viewgroup%E4%B8%8D%E8%83%BD%E5%A4%9F%E5%86%8D%E6%8B%A6%E6%88%AA%E9%99%A4down%E4%BB%A5%E5%A4%96%E7%9A%84%E7%82%B9%E5%87%BB%E4%BA%8B%E4%BB%B6%0A%0A%E6%8C%89%E9%A1%BA%E5%BA%8F%E5%88%86%E6%9E%90%E6%BA%90%E7%A0%81%EF%BC%9A%0A%60%60%60%0Aif%20(actionMasked%20%3D%3D%20MotionEvent.ACTION_DOWN)%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20cancelAndClearTouchTargets(ev)%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20resetTouchState()%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20%7D%0A%60%60%60%0A%E4%B8%8A%E9%9D%A2%E7%9A%84%E6%BA%90%E7%A0%81%E4%B8%BB%E8%A6%81%E4%BC%9A%E5%AF%B9**FLAG_DISALLOW_INTERCEPT**%E8%BF%99%E4%B8%AA%E6%A0%87%E5%BF%97%E8%BF%9B%E8%A1%8C%E9%87%8D%E7%BD%AE%0A%60%60%60%0Aif%20(actionMasked%20%3D%3D%20MotionEvent.ACTION_DOWN%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%7C%7C%20mFirstTouchTarget%20!%3D%20null)%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20final%20boolean%20disallowIntercept%20%3D%20(mGroupFlags%20%26%20FLAG_DISALLOW_INTERCEPT)%20!%3D%200%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20if%20(!disallowIntercept)%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20intercepted%20%3D%20onInterceptTouchEvent(ev)%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20ev.setAction(action)%3B%20%2F%2F%20restore%20action%20in%20case%20it%20was%20changed%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%7D%20else%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20intercepted%20%3D%20false%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20%20%20%20%20%7D%20else%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%2F%2F%20There%20are%20no%20touch%20targets%20and%20this%20action%20is%20not%20an%20initial%20down%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%2F%2F%20so%20this%20view%20group%20continues%20to%20intercept%20touches.%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20intercepted%20%3D%20true%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20%7D%0A%60%60%60%0A%E4%B8%8A%E9%9D%A2%E7%9A%84%E4%BA%8B%E4%BB%B6%E6%98%AF%E5%AF%B9onInterceptTouchEvent(ev)%E7%9A%84%E5%A4%84%E7%90%86%EF%BC%8C%E5%88%A4%E6%96%ADviewgroup%E6%98%AF%E5%90%A6%E6%8B%A6%E6%88%AA%E4%BA%8B%E4%BB%B6%0A%E5%9C%A8ACTION_DOWN%E4%B8%AD%E4%B8%80%E5%AE%9A%E4%BC%9A%E8%B0%83%E7%94%A8intercepted%20%3D%20onInterceptTouchEvent(ev)%0A%E4%B9%8B%E5%90%8E%E7%9A%84MOVE%E4%B8%8EUP%E4%BA%8B%E4%BB%B6mFirstTouchTarget%E4%B8%8D%E4%B8%BA%E7%A9%BA(viewgroup%E6%B2%A1%E6%9C%89%E6%8B%A6%E6%88%AA%E4%BA%8B%E4%BB%B6%EF%BC%8C%E5%AD%90view%E6%8B%A6%E6%88%AA%E4%BA%86%E4%BA%8B%E4%BB%B6)%EF%BC%8C%E5%88%99intercepted%E4%B8%BAfalse%0A%0A%60%60%60%0Afor%20(int%20i%20%3D%20childrenCount%20-%201%3B%20i%20%3E%3D%200%3B%20i--)%20%7B%E3%80%82%E3%80%82%7D%0A%60%60%60%0A%E5%A6%82%E6%9E%9Cviewgroup%E4%B8%8D%E6%8B%A6%E6%88%AA%EF%BC%8C%E6%8E%A5%E4%B8%8B%E6%9D%A5%E4%BC%9A%E5%AF%B9%E5%AD%90view%E8%BF%9B%E8%A1%8C%E9%81%8D%E5%8E%86%EF%BC%8C%E9%80%9A%E8%BF%87dispatchTransformedTouchEvent()%E6%96%B9%E6%B3%95%E8%B0%83%E7%94%A8%E5%AD%90view%E7%9A%84dispatchtoucheven()%E6%96%B9%E6%B3%95.%0A%60%60%60%0Aif%20(child%20%3D%3D%20null)%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20handled%20%3D%20super.dispatchTouchEvent(event)%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20%7D%20else%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20handled%20%3D%20child.dispatchTouchEvent(event)%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20%7D%0A%60%60%60%0A%E5%A6%82%E6%9E%9Cviewgroup%E6%8B%A6%E6%88%AA%E5%88%99%E4%BC%9A%E8%B0%83%E7%94%A8%E8%87%AA%E8%BA%ABview%E7%9A%84dispatchTouchEvent(event)%0A%0A%23%23%23%23%20View%E7%9A%84%E4%BA%8B%E4%BB%B6%E5%88%86%E5%8F%91%0A%60%60%60%0A%20%20%20%20public%20boolean%20dispatchTouchEvent(MotionEvent%20event)%20%7B%0A%20%20%20%20%20%20%20%20...%0A%20%20%20%20%20%20%20%20boolean%20result%20%3D%20false%3B%0A%20%20%20%20%20%20%20%20...%0A%20%20%20%20%20%20%20%20%20%20%20%20if%20((mViewFlags%20%26%20ENABLED_MASK)%20%3D%3D%20ENABLED%20%26%26%20handleScrollBarDragging(event))%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20result%20%3D%20true%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20%20%20%20%20%2F%2Fnoinspection%20SimplifiableIfStatement%0A%20%20%20%20%20%20%20%20%20%20%20%20ListenerInfo%20li%20%3D%20mListenerInfo%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20if%20(li%20!%3D%20null%20%26%26%20li.mOnTouchListener%20!%3D%20null%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%26%26%20(mViewFlags%20%26%20ENABLED_MASK)%20%3D%3D%20ENABLED%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%26%26%20li.mOnTouchListener.onTouch(this%2C%20event))%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20result%20%3D%20true%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20%7D%0A%0A%20%20%20%20%20%20%20%20%20%20%20%20if%20(!result%20%26%26%20onTouchEvent(event))%20%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20result%20%3D%20true%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%20%20..%0A%20%20%20%20%20%20%20%20return%20result%3B%0A%20%20%20%20%7D%0A%60%60%60%0Aview%E7%9A%84dispatchTouchEvent()%E5%9B%A0%E4%B8%BA%E6%B2%A1%E6%9C%89%E5%AD%90%E5%85%83%E7%B4%A0%EF%BC%8C%E6%89%80%E4%BB%A5%E5%8F%AA%E5%AF%B9%E8%87%AA%E5%B7%B1%E8%BF%9B%E8%A1%8C%E5%A4%84%E7%90%86%0Aview%E7%9A%84dispatchTouchEvent()%E4%B8%AD%E6%B2%A1%E6%9C%89onInterceptMotion()%E6%96%B9%E6%B3%95%0Aview%E7%9A%84dispatchTouchEvent()%E6%96%B9%E6%B3%95%E4%BC%9A%E9%A6%96%E5%85%88%E5%88%A4%E6%96%ADListenerInfo%E6%98%AF%E5%90%A6%E8%A2%AB%E8%AE%BE%E7%BD%AE%0A*%20%E5%A6%82%E6%9E%9C%E8%A2%AB%E8%AE%BE%E7%BD%AE%E5%B9%B6%E4%B8%94list.onTouch()%E4%B8%BATrue%E5%88%99%E4%B8%8D%E4%BC%9A%E8%B0%83%E7%94%A8onTouchEvent()%0A%0A%E5%9C%A8onTouchEvent()%E6%96%B9%E6%B3%95%E4%B8%AD%0A%E5%8F%AA%E8%A6%81CLICKABLE%7CLONG_CLICLABLE%E6%9F%90%E4%B8%80%E4%B8%AA%E4%B8%BAture%EF%BC%8C%E5%B0%B1%E4%BC%9A%E6%B6%88%E8%80%97%E8%BF%99%E4%B8%AA%E7%82%B9%E5%87%BB%E4%BA%8B%E4%BB%B6%EF%BC%8C%E8%BF%94%E5%9B%9Etrue%0A%E5%BD%93ACTION_UP%E6%97%B6%EF%BC%8C%E4%BC%9A%E8%B0%83%E7%94%A8performClick()%E6%96%B9%E6%B3%95%EF%BC%8C%E8%AF%A5%E6%96%B9%E6%B3%95%E4%B8%AD%EF%BC%8C%E5%A6%82%E6%9E%9Clistener%E6%9C%89%E8%A2%AB%E8%AE%BE%E7%BD%AE%E5%B0%B1%E4%BC%9A%E8%B0%83%E7%94%A8listener%E7%9A%84%0A**onClick()**%20%E6%96%B9%E6%B3%95%0A%0A%23%23%20%E6%80%BB%E7%BB%93%0A1.%20%E5%A6%82%E6%9E%9C%E5%AD%90%E5%AE%B9%E5%99%A8%E7%9A%84onTouchEvent()%E8%BF%94%E5%9B%9Etrue%EF%BC%8C%E5%88%99%E4%BC%9A%E8%B0%83%E7%94%A8%E7%88%B6%E4%BA%B2%E5%AE%B9%E5%99%A8%E7%9A%84onTouchEvent()%2C%E7%9B%B4%E5%88%B0%E5%88%B0%E8%BE%BEActivity%EF%BC%8C%E7%94%B1%E5%AE%83%E5%A4%84%E7%90%86%E3%80%82%0A2.%20%E5%A6%82%E6%9E%9Cview%E4%B8%8D%E6%B6%88%E8%80%97down%E4%BB%A5%E5%A4%96%E7%9A%84%E4%BA%8B%E4%BB%B6%EF%BC%8Cview%E7%9A%84onTouchEvent%E6%96%B9%E6%B3%95%20%E4%BC%9A%E6%94%B6%E5%88%B0%E5%90%8E%E7%BB%AD%E4%BA%8B%E4%BB%B6%EF%BC%8C%E4%BD%86%E6%98%AF%E6%B6%88%E5%A4%B1%E7%9A%84%E4%BA%8B%E4%BB%B6%E4%B8%8D%E4%BC%9A%E5%8F%88%E7%88%B6view%E5%A4%84%E7%90%86%EF%BC%8C%E8%80%8C%E6%98%AF%E4%BA%A4%E7%BB%99activity%E5%A4%84%E7%90%86%E3%80%82%0A3.%20%E5%A6%82%E6%9E%9C%E6%9F%90view%E6%8B%A6%E6%88%AA%E4%BA%8B%E4%BB%B6%EF%BC%8C%E4%BD%86%E6%98%AF%E4%B8%8D%E6%B6%88%E8%80%97down%E4%BA%8B%E4%BB%B6%EF%BC%8C%E5%88%99%E5%AE%83%E4%B8%8D%E4%BC%9A%E5%86%8D%E6%94%B6%E5%88%B0%E4%BA%8B%E4%BB%B6%E5%BA%8F%E5%88%97%E4%B8%AD%E4%B9%8B%E5%90%8E%E7%9A%84%E4%BA%8B%E4%BB%B6%E3%80%82%0A4.%20%E4%B8%80%E4%B8%AA%E4%BA%8B%E4%BB%B6%E5%BA%8F%E5%88%97%E9%80%9A%E5%B8%B8%E5%8F%AA%E8%83%BD%E8%A2%AB%E4%B8%80%E4%B8%AAview%E6%8B%A6%E6%88%AA%E6%B6%88%E8%80%97%EF%BC%8C%E4%B8%80%E6%97%A6%E6%8B%A6%E6%88%AA%E4%BC%9A%EF%BC%8C%E4%BA%8B%E4%BB%B6%E5%BA%8F%E5%88%97%E4%B8%AD%E4%B9%8B%E5%90%8E%E4%BA%8B%E4%BB%B6%E9%83%BD%E5%8F%88%E5%AE%83%E5%A4%84%E7%90%86%0A5.%20viewgroup%E9%80%9A%E5%B8%B8%E4%B8%8D%E4%BC%9A%E6%8B%A6%E6%88%AA%E4%BA%8B%E4%BB%B6%0A6.%20enable%E4%B8%8D%E5%BD%B1%E5%93%8DonTouchEvent()%E9%83%BD%E8%BF%94%E5%9B%9E%0A7.%20onTouchEvent()%E5%8F%AA%E6%9C%89clickable%E5%92%8Clongclickable%E9%83%BD%E4%B8%BAfalse%E6%89%8D%E8%BF%94%E5%9B%9Efalse</center></body></html>
